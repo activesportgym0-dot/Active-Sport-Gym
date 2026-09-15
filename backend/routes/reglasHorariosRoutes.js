@@ -10,7 +10,7 @@ import { verificarToken, verificarAdmin } from "../middlewares/authMiddleware.js
 const router = Router();
 
 // Ruta pública (para ser consumida en Flutter por cualquier usuario)
-router.get("/", obtenerReglasHorarios);
+router.get("/", verificarToken,obtenerReglasHorarios);
 
 // Rutas protegidas (Solo Administrador)
 router.post("/", verificarToken, verificarAdmin, crearReglaHorario);

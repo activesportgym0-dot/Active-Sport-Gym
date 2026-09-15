@@ -8,9 +8,10 @@ const calcularIMC = (peso, altura) => {
     return null;
 };
 
-// Proyeccion de campos en orden organizado para las respuestas JSON
+// Proyección de campos en orden organizado para las respuestas JSON
 const CAMPOS_ORDENADOS = `
     id_progreso,
+    id_historial_medida,
     id_usuario,
     fecha_registro,
     peso_actual,
@@ -33,27 +34,49 @@ export const obtenerProgresoActualBD = async (id_usuario) => {
         .from("progreso")
         .select(CAMPOS_ORDENADOS)
         .eq("id_usuario", id_usuario)
-        .order("fecha_registro", { ascending: false })
+        .order("id_progreso", { ascending: false })
         .limit(1)
         .maybeSingle();
 
     return { data, error };
 };
 
-// Registra una nueva medida de progreso en la base de datos
+// Registra el historial y las medidas de forma vinculada
 export const registrarNuevaMedidaBD = async (id_usuario, datos) => {
+    const ahora = new Date();
+    const fechaActual = ahora.toISOString().split("T")[0]; // YYYY-MM-DD
+    const horaActual = ahora.toTimeString().split(" ")[0]; // HH:MM:SS
+
+    // Paso 1: Crear la cabecera en la tabla 'historial_medidas'
+    const { data: historialData, error: historialError } = await supabase
+        .from("historial_medidas")
+        .insert([{
+            id_usuario,
+            fecha_registro: fechaActual,
+            hora_registro: horaActual
+        }])
+        .select()
+        .single();
+
+    if (historialError) {
+        return { data: null, error: historialError };
+    }
+
+    const id_historial_medida = historialData.id_historial_medida;
     const imc = calcularIMC(datos.peso_actual, datos.altura);
 
-    const payload = {
+    // Paso 2: Insertar el detalle del progreso vinculado al historial creado
+    const payloadProgreso = {
         id_usuario,
+        id_historial_medida,
         ...datos,
         imc,
-        fecha_registro: new Date().toISOString()
+        fecha_registro: fechaActual
     };
 
     const { data, error } = await supabase
         .from("progreso")
-        .insert([payload])
+        .insert([payloadProgreso])
         .select(CAMPOS_ORDENADOS)
         .single();
 
@@ -66,22 +89,21 @@ export const obtenerHistorialMedidasBD = async (id_usuario) => {
         .from("progreso")
         .select(CAMPOS_ORDENADOS)
         .eq("id_usuario", id_usuario)
-        .order("fecha_registro", { ascending: false });
+        .order("id_progreso", { ascending: false });
 
     return { data, error };
 };
 
-// Elimina una medida especifica del historial
+// Elimina una medida específica del historial
 export const eliminarMedidaHistorialBD = async (id_progreso, id_usuario) => {
     const { data, error } = await supabase
         .from("progreso")
         .delete()
         .eq("id_progreso", Number(id_progreso))
         .eq("id_usuario", Number(id_usuario))
-        .select(CAMPOS_ORDENADOS)
-        .single();
+        .select(CAMPOS_ORDENADOS);
 
-    return { data, error };
+    return { data: data?.[0] || null, error };
 };
 
 // Elimina todas las medidas del historial del usuario

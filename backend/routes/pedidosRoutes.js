@@ -15,9 +15,7 @@ import {
 
 const router = Router();
 
-// ==========================================
 // RUTAS EXCLUSIVAS DEL CLIENTE
-// ==========================================
 
 // Confirmar pedido desde el carrito de compras (Checkout)
 router.post("/confirmar", verificarToken, verificarCliente, confirmarPedido);
@@ -28,10 +26,7 @@ router.get("/mis-pedidos", verificarToken, verificarCliente, obtenerMisPedidos);
 // Cancelar un pedido propio en estado 'Pendiente'
 router.put("/mis-pedidos/:id/cancelar", verificarToken, verificarCliente, cancelarMiPedido);
 
-
-// ==========================================
 // RUTAS EXCLUSIVAS DEL ADMINISTRADOR
-// ==========================================
 
 // Obtener la lista global de todos los pedidos registrados en la tienda
 router.get("/admin", verificarToken, verificarAdmin, obtenerTodosPedidos);

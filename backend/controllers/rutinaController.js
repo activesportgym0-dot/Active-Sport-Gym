@@ -39,28 +39,33 @@ export const listarRutinas = async (req, res) => {
         });
     }
 };
-// 2. OBTENER RUTINA POR ID
+
+// 2. OBTENER UNA RUTINA ESPECÍFICA POR SU ID
 export const obtenerRutina = async (req, res) => {
     try {
         const idUsuarioAutenticado = req.usuario?.id_usuario || req.usuario?.id;
         const { id } = req.params;
+        
         if (!id || isNaN(id)) {
             return res.status(400).json({
                 mensaje: "El ID de la rutina debe ser un número válido"
             });
         }
+        
         const { data, error } = await obtenerRutinaPorId(Number(id));
         if (error || !data) {
             return res.status(404).json({
                 mensaje: "Rutina no encontrada"
             });
         }
-        // Validación de propiedad
+
+        // Validación de propiedad mediante el token
         if (Number(data.id_usuario) !== Number(idUsuarioAutenticado)) {
             return res.status(403).json({
                 mensaje: "No tienes permiso para consultar esta rutina"
             });
         }
+
         return res.status(200).json({
             mensaje: "Rutina obtenida correctamente",
             rutina: data
@@ -72,7 +77,8 @@ export const obtenerRutina = async (req, res) => {
         });
     }
 };
-// 3. OBTENER RUTINAS DEL USUARIO AUTENTICADO
+
+// 3. OBTENER TODAS LAS RUTINAS DEL USUARIO AUTENTICADO (Automático por el Token)
 export const listarRutinasPorUsuario = async (req, res) => {
     try {
         const idUsuarioAutenticado = req.usuario?.id_usuario || req.usuario?.id;
@@ -81,6 +87,7 @@ export const listarRutinasPorUsuario = async (req, res) => {
                 mensaje: "Usuario no autenticado o token inválido"
             });
         }
+
         const { data, error } = await obtenerRutinasPorUsuario(Number(idUsuarioAutenticado));
         if (error) {
             console.error("Error al obtener rutinas del usuario:", error);
@@ -89,6 +96,7 @@ export const listarRutinasPorUsuario = async (req, res) => {
                 error: error.message
             });
         }
+
         return res.status(200).json({
             mensaje: "Rutinas del usuario obtenidas correctamente",
             cantidad: data ? data.length : 0,
@@ -334,10 +342,8 @@ export const registrarRutina = async (req, res) => {
                             mensaje: `Las repeticiones de la Serie ${numeroSerie + 1} deben ser mayores que cero`
                         });
                     }
-
                     const peso = serie.peso === undefined || serie.peso === null || serie.peso === "" ? null : Number(serie.peso);
                     const descansoEntreSeries = serie.descanso_entre_series === undefined || serie.descanso_entre_series === null || serie.descanso_entre_series === "" ? null : Number(serie.descanso_entre_series);
-
                     const { error: errorSerie } = await agregarSerieRutina(
                         ejercicioRutina.id_rutina_ejercicio,
                         numeroSerie + 1,
@@ -345,7 +351,6 @@ export const registrarRutina = async (req, res) => {
                         peso,
                         descansoEntreSeries
                     );
-
                     if (errorSerie) {
                         await eliminarRutina(rutina.id_rutina);
                         return res.status(500).json({
@@ -354,7 +359,6 @@ export const registrarRutina = async (req, res) => {
                         });
                     }
                 }
-
                 objetoDia.ejercicios.push({
                     id_rutina_ejercicio: ejercicioRutina.id_rutina_ejercicio,
                     id_ejercicio: ejercicioRutina.id_ejercicio,
@@ -362,22 +366,19 @@ export const registrarRutina = async (req, res) => {
                     descanso_final: ejercicioRutina.descanso_final
                 });
             }
-
             diasCreados.push(objetoDia);
         }
-
         return res.status(201).json({
             mensaje: "Rutina creada correctamente",
             rutina: rutina,
             dias: diasCreados
         });
-
     } catch (error) {
         console.error("Error inesperado al crear rutina:", error);
         return res.status(500).json({ mensaje: "Error interno del servidor" });
     }
 };
-// 5. ACTUALIZAR RUTINA
+// 5. ACTUALIZAR RUTINA COMPLETA (NOMBRE, TIPO, DÍAS Y EJERCICIOS)
 export const editarRutina = async (req, res) => {
     try {
         const idUsuarioAutenticado = req.usuario?.id_usuario || req.usuario?.id;
@@ -388,7 +389,7 @@ export const editarRutina = async (req, res) => {
                 mensaje: "El ID de la rutina debe ser un número válido"
             });
         }
-        // Verificar propiedad antes de editar
+        // 1. Verificar propiedad y existencia de la rutina
         const { data: rutinaExistente, error: errorExistente } = await obtenerRutinaPorId(numId);
         if (errorExistente || !rutinaExistente) {
             return res.status(404).json({ mensaje: "Rutina no encontrada" });
@@ -396,55 +397,124 @@ export const editarRutina = async (req, res) => {
         if (Number(rutinaExistente.id_usuario) !== Number(idUsuarioAutenticado)) {
             return res.status(403).json({ mensaje: "No tienes permiso para modificar esta rutina" });
         }
-        const camposPermitidos = ["nombre", "tipo"];
-        const campos = {};
-        for (const campo of camposPermitidos) {
-            if (req.body[campo] !== undefined) {
-                campos[campo] = req.body[campo];
-            }
+        let { nombre, tipo, fecha, dias, ejercicios } = req.body;
+        // 2. Validaciones básicas (Igual que en crear)
+        if (!nombre || typeof nombre !== "string") {
+            return res.status(400).json({ mensaje: "El nombre de la rutina es obligatorio" });
         }
-        if (Object.keys(campos).length === 0) {
-            return res.status(400).json({
-                mensaje: "No se proporcionaron datos para actualizar"
+        const nombreLimpio = nombre.trim();
+        if (nombreLimpio.length === 0 || nombreLimpio.length > 100) {
+            return res.status(400).json({ mensaje: "El nombre no es válido o supera los 100 caracteres" });
+        }
+        if (tipo !== "diaria" && tipo !== "semanal") {
+            return res.status(400).json({ mensaje: "El tipo de rutina debe ser diaria o semanal" });
+        }
+        // Adaptación automática si mandan ejercicios en la raíz para rutina diaria
+        if (tipo === "diaria" && (!dias || !Array.isArray(dias))) {
+            if (!ejercicios || !Array.isArray(ejercicios) || ejercicios.length === 0) {
+                return res.status(400).json({ mensaje: "La rutina diaria debe contener un arreglo de ejercicios" });
+            }
+            dias = [{ dia_semana: "diario", nombre_dia: nombreLimpio, ejercicios: ejercicios }];
+        }
+        if (!Array.isArray(dias) || dias.length === 0) {
+            return res.status(400).json({ mensaje: "La rutina debe tener al menos un día con ejercicios" });
+        }
+        // Validaciones de días y estructura (la misma lógica que ya tienes)
+        const diasValidos = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo", "diario"];
+        const diasLimpios = [];
+        for (const dia of dias) {
+            let diaSemana = typeof dia.dia_semana === "string" ? dia.dia_semana.trim().toLowerCase() : "";
+            if (tipo === "diaria" && !diaSemana) diaSemana = "diario";
+            if (!diasValidos.includes(diaSemana)) {
+                return res.status(400).json({ mensaje: "Uno de los días enviados no es válido" });
+            }
+            const listaEjercicios = Array.isArray(dia.ejercicios) ? dia.ejercicios : [];
+            if (listaEjercicios.length === 0) continue;
+            const nombreDia = tipo === "diaria" ? (dia.nombre_dia || nombreLimpio) : String(dia.nombre_dia || "").trim();
+            diasLimpios.push({
+                dia_semana: diaSemana,
+                nombre_dia: nombreDia,
+                ejercicios: listaEjercicios
             });
         }
-        if (campos.nombre !== undefined) {
-            if (typeof campos.nombre !== "string") {
-                return res.status(400).json({
-                    mensaje: "El nombre de la rutina no es válido"
-                });
-            }
-            campos.nombre = campos.nombre.trim();
-            if (campos.nombre.length === 0) {
-                return res.status(400).json({
-                    mensaje: "El nombre de la rutina no puede estar vacío"
-                });
-            }
+        if (tipo === "diaria" && diasLimpios.length !== 1) {
+            return res.status(400).json({ mensaje: "Una rutina diaria debe tener exactamente un solo día con ejercicios" });
         }
-        if (campos.tipo !== undefined) {
-            if (campos.tipo !== "diaria" && campos.tipo !== "semanal") {
-                return res.status(400).json({
-                    mensaje: "El tipo de rutina debe ser diaria o semanal"
+        if (tipo === "semanal" && (diasLimpios.length < 2 || diasLimpios.length > 7)) {
+            return res.status(400).json({ mensaje: "Una rutina semanal debe incluir entre 2 y 7 días con ejercicios" });
+        }
+        // 3. Actualizar los datos principales de la rutina (nombre, tipo, fecha si aplica)
+        const { data: rutinaActualizada, error: errorUpdate } = await actualizarRutina(numId, {
+            nombre: nombreLimpio,
+            tipo: tipo,
+            ...(fecha && { fecha })
+        });
+        if (errorUpdate) {
+            return res.status(500).json({ mensaje: "Error al actualizar la información principal de la rutina" });
+        }
+        // 4. Limpiar los días y ejercicios viejos antes de meter los nuevos
+        const { error: errorLimpiar } = await limpiarDiasRutina(numId);
+        if (errorLimpiar) {
+            return res.status(500).json({ mensaje: "Error al limpiar la estructura anterior de la rutina" });
+        }
+        const diasCreados = [];
+        // 5. Reinsertar los nuevos días, ejercicios y series (Idéntico a la creación)
+        for (const dia of diasLimpios) {
+            const { data: diaCreado, error: errorDia } = await crearDiaRutina(
+                numId,
+                dia.dia_semana,
+                dia.nombre_dia
+            );
+            if (errorDia || !diaCreado) {
+                return res.status(500).json({ mensaje: "Error al registrar los nuevos días de la rutina" });
+            }
+            const objetoDia = { ...diaCreado, ejercicios: [] };
+            for (let indice = 0; indice < dia.ejercicios.length; indice++) {
+                const ejercicio = dia.ejercicios[indice];
+                const idEjercicio = Number(ejercicio?.id_ejercicio);
+                const descansoFinal = ejercicio.descanso_final === undefined || ejercicio.descanso_final === "" ? null : Number(ejercicio.descanso_final);
+                const { data: ejercicioRutina, error: errorEjercicioRutina } = await agregarEjercicioRutina(
+                    diaCreado.id_rutina_dia,
+                    idEjercicio,
+                    indice + 1,
+                    descansoFinal,
+                    numId
+                );
+                if (errorEjercicioRutina || !ejercicioRutina) {
+                    return res.status(500).json({ mensaje: "Error al vincular los nuevos ejercicios" });
+                }
+                const series = ejercicio.series;
+                if (Array.isArray(series)) {
+                    for (let numeroSerie = 0; numeroSerie < series.length; numeroSerie++) {
+                        const serie = series[numeroSerie];
+                        const repeticiones = Number(serie?.repeticiones);
+                        const peso = serie.peso === undefined || serie.peso === "" ? null : Number(serie.peso);
+                        const descansoEntreSeries = serie.descanso_entre_series === undefined || serie.descanso_entre_series === "" ? null : Number(serie.descanso_entre_series);
+                        await agregarSerieRutina(
+                            ejercicioRutina.id_rutina_ejercicio,
+                            numeroSerie + 1,
+                            repeticiones,
+                            peso,
+                            descansoEntreSeries
+                        );
+                    }
+                }
+                objetoDia.ejercicios.push({
+                    id_rutina_ejercicio: ejercicioRutina.id_rutina_ejercicio,
+                    id_ejercicio: ejercicioRutina.id_rutina_ejercicio,
+                    orden: ejercicioRutina.orden
                 });
             }
-        }
-        const { data, error } = await actualizarRutina(numId, campos);
-        if (error) {
-            console.error("Error al actualizar rutina:", error);
-            return res.status(500).json({
-                mensaje: "No fue posible actualizar la rutina",
-                error: error.message
-            });
+            diasCreados.push(objetoDia);
         }
         return res.status(200).json({
             mensaje: "Rutina actualizada correctamente",
-            rutina: data
+            rutina: rutinaActualizada,
+            dias: diasCreados
         });
     } catch (error) {
-        console.error("Error inesperado:", error);
-        return res.status(500).json({
-            mensaje: "Error interno del servidor"
-        });
+        console.error("Error inesperado al actualizar rutina completa:", error);
+        return res.status(500).json({ mensaje: "Error interno del servidor" });
     }
 };
 // 6. ACTUALIZAR DÍA DE LA RUTINA
@@ -541,7 +611,9 @@ export const editarEjercicioRutina = async (req, res) => {
         if (Number(idDuenio) !== Number(idUsuarioAutenticado)) {
             return res.status(403).json({ mensaje: "No tienes permiso para modificar este ejercicio" });
         }
-        const camposPermitidos = ["orden", "descanso_final"];
+
+        // AGREGAMOS "id_ejercicio" A LOS CAMPOS PERMITIDOS
+        const camposPermitidos = ["orden", "descanso_final", "id_ejercicio"];
         const campos = {};
         for (const campo of camposPermitidos) {
             if (req.body[campo] !== undefined) {
@@ -553,6 +625,18 @@ export const editarEjercicioRutina = async (req, res) => {
                 mensaje: "No se proporcionaron datos para actualizar"
             });
         }
+
+        // VALIDACIÓN PARA ID_EJERCICIO SI LO MANDAN
+        if (campos.id_ejercicio !== undefined) {
+            const idEj = Number(campos.id_ejercicio);
+            if (!Number.isInteger(idEj) || idEj <= 0) {
+                return res.status(400).json({
+                    mensaje: "El ID del ejercicio del catálogo no es válido"
+                });
+            }
+            campos.id_ejercicio = idEj;
+        }
+
         if (campos.orden !== undefined) {
             const orden = Number(campos.orden);
             if (!Number.isInteger(orden) || orden <= 0) {

@@ -7,18 +7,19 @@ import {
 } from "../controllers/usuarioController.js";
 
 import { verificarToken, verificarAdmin, verificarCliente } from "../middlewares/authMiddleware.js";
+
 const router = Router();
 
-// OBTENER TODOS LOS USUARIOS
-router.get("/", listarUsuarios, verificarToken,verificarAdmin);
+// OBTENER TODOS LOS USUARIOS (Solo Admin)
+router.get("/", verificarToken, verificarAdmin, listarUsuarios);
 
-// OBTENER USUARIO POR ID
-router.get("/:id", obtenerUsuario, verificarToken,verificarAdmin);
+// OBTENER USUARIO POR ID (Solo Admin)
+router.get("/:id", verificarToken, verificarAdmin, obtenerUsuario);
 
-// ACTUALIZAR USUARIO
-router.put("/:id", editarUsuario, verificarToken,verificarAdmin, verificarCliente);
+// ACTUALIZAR USUARIO (Requiere token)
+router.put("/:id", verificarToken, editarUsuario);
 
-// ELIMINAR USUARIO
-router.delete("/:id", borrarUsuario,verificarToken,verificarAdmin);
+// ELIMINAR USUARIO (Solo Admin)
+router.delete("/:id", verificarToken, verificarAdmin, borrarUsuario);
 
 export default router;
