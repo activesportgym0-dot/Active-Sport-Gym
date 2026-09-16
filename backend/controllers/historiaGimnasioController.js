@@ -26,10 +26,13 @@ export const obtenerHistorias = async (req, res) => {
   }
 };
 
-// 2. Crear historia (Admin - Todos los campos son obligatorios)
+// 2. Crear historia (Admin - La imagen es opcional)
 export const crearHistoria = async (req, res) => {
   try {
-    const { titulo, contenido, imagen } = req.body;
+    const { titulo, contenido } = req.body;
+    
+    // Capturar la URL de la imagen si se subió un archivo, de lo contrario queda como null o cadena vacía
+    const imagenUrl = req.file?.path || req.file?.url || null;
 
     // Validar que el body no venga vacío
     if (!req.body || Object.keys(req.body).length === 0) {
@@ -51,16 +54,10 @@ export const crearHistoria = async (req, res) => {
       });
     }
 
-    if (!imagen || typeof imagen !== "string" || !imagen.trim()) {
-      return res.status(400).json({ 
-        error: "El campo 'imagen' es obligatorio." 
-      });
-    }
-
     const { data, error } = await crearHistoriaBD({
       titulo: titulo.trim(),
       contenido: contenido.trim(),
-      imagen: imagen.trim()
+      imagen: imagenUrl ? imagenUrl.trim() : null
     });
 
     if (error) {
@@ -79,7 +76,6 @@ export const crearHistoria = async (req, res) => {
     return res.status(500).json({ error: "Error interno al crear la historia." });
   }
 };
-
 // 3. Actualizar historia (Admin)
 export const actualizarHistoria = async (req, res) => {
   try {

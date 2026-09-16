@@ -52,8 +52,7 @@ export const obtenerHistorialesPorUsuario = async (id_usuario) => {
                 id_ejercicio,
                 tiempo_ejercicio,
                 ejercicios (
-                    nombre,
-                    imagen_url
+                    nombre
                 )
             )
         `)
@@ -62,7 +61,6 @@ export const obtenerHistorialesPorUsuario = async (id_usuario) => {
 
     return { data, error };
 };
-
     // 4. Eliminar un registro específico del historial por su ID
 export const eliminarHistorialPorId = async (id_historial, id_usuario) => {
     const { data, error } = await supabase

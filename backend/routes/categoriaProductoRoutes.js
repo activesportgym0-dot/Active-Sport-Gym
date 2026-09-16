@@ -11,7 +11,7 @@ const router = Router();
 
 // Consulta de Categorías para Clientes Logueados
 // Exige que el usuario haya iniciado sesión (Token) y tenga rol de Cliente
-router.get("/", verificarToken, verificarCliente, listarCategorias);
+router.get("/", verificarToken, listarCategorias);
 
 // Gestión Exclusiva del Administrador
 // Exige que el usuario tenga inicio de sesión activo y permisos de Administrador

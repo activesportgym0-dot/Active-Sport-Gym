@@ -421,7 +421,8 @@ export const editarEjercicio = async (req, res) => {
     } catch (error) {
         console.error("Error inesperado al actualizar ejercicio:", error);
         return res.status(500).json({
-            mensaje: "Error interno del servidor"
+            mensaje: "Error interno del servidor",
+            error: error.message
         });
     }
 };

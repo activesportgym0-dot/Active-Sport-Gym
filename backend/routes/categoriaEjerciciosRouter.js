@@ -12,8 +12,8 @@ import { verificarToken ,verificarAdmin } from "../middlewares/authMiddleware.js
 const router = Router();
 
 // Rutas públicas (cualquier usuario logueado o visitante puede consultar)
-router.get("/", listarCategorias);
-router.get("/:id", obtenerCategoria);
+router.get("/", verificarToken,listarCategorias);
+router.get("/:id", verificarToken,obtenerCategoria);
 
 // Rutas protegidas (SOLO ADMINISTRADOR)
 router.post("/", verificarToken, verificarAdmin, registrarCategoria);
