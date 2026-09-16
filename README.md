@@ -74,41 +74,24 @@ npm run dev
 ---
 
 ## 📁 Estructura del Proyecto
-
+<pre><code>
 active-sport-gym/
 ├── backend/
-
-│   ├── assets/
-
-│   │   └── images/          # Recursos de imágenes estáticas
-
-│   ├── config/              # Configuración de base de datos y servicios
-
-│   ├── controllers/         # Lógica de controladores (usuarios, productos, notificaciones)
-
-│   ├── middlewares/         # Validación de JWT y roles
-
-│   ├── models/              # Esquemas y modelos de datos
-
-│   ├── node_modules/        # Dependencias de Node.js
-
-│   ├── routes/              # Definición de las rutas de la API
-
-│   ├── uploads/             # Archivos subidos al servidor
-
-│   ├── utils/               # Funciones auxiliares y herramientas
-
-│   ├── .env                 # Variables de entorno
-
-│   ├── .gitignore           # Archivos ignorados por Git
-
-│   ├── index.js             # Punto de entrada del servidor Express
-
-│   ├── package-lock.json    # Árbol de dependencias bloqueado
-
-│   └── package.json         # Configuración del proyecto backend y scripts
-
-
+  ├── assets/
+  │   └── images/          # Recursos de imágenes estáticas
+  ├── config/              # Configuración de base de datos y servicios
+  ├── controllers/         # Lógica de controladores (usuarios, productos, notificaciones)
+  ├── middlewares/         # Validación de JWT y roles
+  ├── models/              # Esquemas y modelos de datos
+  ├── node_modules/        # Dependencias de Node.js
+  ├── routes/              # Definición de las rutas de la API
+  ├── utils/               # Funciones auxiliares y herramientas
+  ├── .env                 # Variables de entorno
+  ├── .gitignore           # Archivos ignorados por Git
+  ├── index.js             # Punto de entrada del servidor Express
+  ├── package-lock.json    # Árbol de dependencias bloqueado
+  └── package.json         # Configuración del proyecto backend y scripts
+</code></pre>
 
 
 ---
