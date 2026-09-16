@@ -32,6 +32,7 @@ export const listarRutinas = async (req, res) => {
             cantidad: data ? data.length : 0,
             rutinas: data || []
         });
+        // Manejo de errores devueltos por Supabase
     } catch (error) {
         console.error("Error inesperado:", error);
         return res.status(500).json({
@@ -43,9 +44,10 @@ export const listarRutinas = async (req, res) => {
 // 2. OBTENER UNA RUTINA ESPECÍFICA POR SU ID
 export const obtenerRutina = async (req, res) => {
     try {
+        
         const idUsuarioAutenticado = req.usuario?.id_usuario || req.usuario?.id;
         const { id } = req.params;
-        
+        // Validación de formato de ID numérico
         if (!id || isNaN(id)) {
             return res.status(400).json({
                 mensaje: "El ID de la rutina debe ser un número válido"
@@ -59,7 +61,7 @@ export const obtenerRutina = async (req, res) => {
             });
         }
 
-        // Validación de propiedad mediante el token
+// Validación de seguridad: Verificar que la rutina pertenezca al usuario autenticado
         if (Number(data.id_usuario) !== Number(idUsuarioAutenticado)) {
             return res.status(403).json({
                 mensaje: "No tienes permiso para consultar esta rutina"
@@ -81,6 +83,7 @@ export const obtenerRutina = async (req, res) => {
 // 3. OBTENER TODAS LAS RUTINAS DEL USUARIO AUTENTICADO (Automático por el Token)
 export const listarRutinasPorUsuario = async (req, res) => {
     try {
+        // Extracción segura del ID de usuario decodificado desde el token JWT
         const idUsuarioAutenticado = req.usuario?.id_usuario || req.usuario?.id;
         if (!idUsuarioAutenticado || isNaN(idUsuarioAutenticado)) {
             return res.status(401).json({
@@ -112,8 +115,10 @@ export const listarRutinasPorUsuario = async (req, res) => {
 // 4. CREAR RUTINA
 export const registrarRutina = async (req, res) => {
     try {
+        // Extracción segura del ID de usuario decodificado desde el token JWT
         const idUsuarioRaw = req.usuario?.id_usuario || req.usuario?.id;
         const id_usuario = Number(idUsuarioRaw);
+        // Verificación de integridad para evitar errores con parámetros nulos o tokens inválidos
         if (!idUsuarioRaw || !Number.isInteger(id_usuario)) {
             return res.status(401).json({
                 mensaje: "Usuario no autenticado o token inválido"
@@ -128,6 +133,7 @@ export const registrarRutina = async (req, res) => {
                 mensaje: "El nombre de la rutina es obligatorio"
             });
         }
+        // Sanitización y normalización del formato de texto
         const nombreLimpio = nombre.trim();
         if (nombreLimpio.length === 0) {
             return res.status(400).json({
@@ -139,14 +145,12 @@ export const registrarRutina = async (req, res) => {
                 mensaje: "El nombre de la rutina no puede superar los 100 caracteres"
             });
         }
-
         // Validación de Tipo
         if (tipo !== "diaria" && tipo !== "semanal") {
             return res.status(400).json({
                 mensaje: "El tipo de rutina debe ser diaria o semanal"
             });
         }
-
         // Validación de Fecha
         let fechaLimpia = null;
         if (fecha) {
@@ -158,7 +162,6 @@ export const registrarRutina = async (req, res) => {
             }
             fechaLimpia = fecha;
         }
-
         // Adaptación automática para rutina diaria si envían 'ejercicios' en la raíz
         if (tipo === "diaria" && (!dias || !Array.isArray(dias))) {
             if (!ejercicios || !Array.isArray(ejercicios) || ejercicios.length === 0) {
@@ -174,69 +177,55 @@ export const registrarRutina = async (req, res) => {
                 }
             ];
         }
-
         // Validación del arreglo de días
         if (!Array.isArray(dias) || dias.length === 0) {
             return res.status(400).json({
                 mensaje: "La rutina debe tener al menos un día con ejercicios"
             });
         }
-
         // Se incluye "diario" en la lista de días permitidos
         const diasValidos = [
             "lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo", "diario"
         ];
         const diasLimpios = [];
-
+        // Filtrar y validar cada día enviado en la petición
         for (const dia of dias) {
             if (!dia || typeof dia !== "object") {
                 return res.status(400).json({ mensaje: "La información de los días no es válida" });
             }
-
             let diaSemana = typeof dia.dia_semana === "string" ? dia.dia_semana.trim().toLowerCase() : "";
-
             if (tipo === "diaria" && !diaSemana) {
                 diaSemana = "diario";
             }
-
             if (!diasValidos.includes(diaSemana)) {
                 return res.status(400).json({ mensaje: "Uno de los días enviados no es válido" });
             }
-
             if (diasLimpios.some(item => item.dia_semana === diaSemana)) {
                 return res.status(400).json({ mensaje: "No se puede repetir un día dentro de la rutina" });
             }
-
             const listaEjercicios = dia.ejercicios === undefined ? [] : dia.ejercicios;
-
             if (!Array.isArray(listaEjercicios)) {
                 return res.status(400).json({ mensaje: "Los ejercicios de cada día deben enviarse como un arreglo" });
             }
-
             if (listaEjercicios.length === 0) continue;
-
             const nombreDia = tipo === "diaria"
                 ? (dia.nombre_dia || nombreLimpio)
                 : String(dia.nombre_dia || "").trim();
-
             if (tipo === "semanal" && nombreDia.length === 0) {
                 return res.status(400).json({ mensaje: `Debes colocar el nombre del día ${diaSemana}` });
             }
-
             diasLimpios.push({
                 dia_semana: diaSemana,
                 nombre_dia: nombreDia,
                 ejercicios: listaEjercicios
             });
         }
-
         // Reglas de negocio según el tipo
         if (tipo === "diaria" && diasLimpios.length !== 1) {
             return res.status(400).json({
                 mensaje: "Una rutina diaria debe tener exactamente un solo día con ejercicios"
             });
         }
-
         if (tipo === "semanal") {
             if (diasLimpios.length < 2 || diasLimpios.length > 7) {
                 return res.status(400).json({
@@ -244,7 +233,6 @@ export const registrarRutina = async (req, res) => {
                 });
             }
         }
-
         // Insertar Rutina Principal
         const { data: rutina, error: errorRutina } = await crearRutina(
             id_usuario,
@@ -252,16 +240,14 @@ export const registrarRutina = async (req, res) => {
             tipo,
             fechaLimpia
         );
-
+        // Manejo de errores devueltos por Supabase
         if (errorRutina || !rutina) {
             return res.status(500).json({
                 mensaje: "No fue posible crear la rutina",
                 error: errorRutina ? errorRutina.message : "Error al obtener la rutina creada"
             });
         }
-
         const diasCreados = [];
-
         // Insertar Días, Ejercicios y Series
         for (const dia of diasLimpios) {
             const { data: diaCreado, error: errorDia } = await crearDiaRutina(
@@ -269,7 +255,6 @@ export const registrarRutina = async (req, res) => {
                 dia.dia_semana,
                 dia.nombre_dia
             );
-
             if (errorDia || !diaCreado) {
                 await eliminarRutina(rutina.id_rutina);
                 return res.status(500).json({
@@ -277,37 +262,33 @@ export const registrarRutina = async (req, res) => {
                     error: errorDia ? errorDia.message : "Error al obtener el día creado"
                 });
             }
-
             const objetoDia = { ...diaCreado, ejercicios: [] };
-
+            // Vincula cada ejercicio al día correspondiente con su orden
             for (let indice = 0; indice < dia.ejercicios.length; indice++) {
                 const ejercicio = dia.ejercicios[indice];
                 const idEjercicio = Number(ejercicio?.id_ejercicio);
-
+                // Valida que el ID del ejercicio sea un entero positivo
                 if (!idEjercicio || !Number.isInteger(idEjercicio) || idEjercicio <= 0) {
                     await eliminarRutina(rutina.id_rutina);
                     return res.status(400).json({
                         mensaje: "Cada ejercicio debe tener un ID válido"
                     });
                 }
-
                 const { data: ejercicioExistente, error: errorEjercicio } = await supabase
                     .from("ejercicios")
                     .select("id_ejercicio")
                     .eq("id_ejercicio", idEjercicio)
                     .single();
-
                 if (errorEjercicio || !ejercicioExistente) {
                     await eliminarRutina(rutina.id_rutina);
                     return res.status(404).json({
                         mensaje: `El ejercicio con ID ${idEjercicio} no existe en el catálogo`
                     });
                 }
-
+                // Manejo inteligente de campos opcionales para transformarlos en nulos si llegan vacíos
                 const descansoFinal = ejercicio.descanso_final === undefined || ejercicio.descanso_final === null || ejercicio.descanso_final === ""
                     ? null
                     : Number(ejercicio.descanso_final);
-
                 const { data: ejercicioRutina, error: errorEjercicioRutina } = await agregarEjercicioRutina(
                     diaCreado.id_rutina_dia,
                     idEjercicio,
@@ -315,7 +296,6 @@ export const registrarRutina = async (req, res) => {
                     descansoFinal,
                     rutina.id_rutina
                 );
-
                 if (errorEjercicioRutina || !ejercicioRutina) {
                     await eliminarRutina(rutina.id_rutina);
                     return res.status(500).json({
@@ -323,7 +303,6 @@ export const registrarRutina = async (req, res) => {
                         error: errorEjercicioRutina ? errorEjercicioRutina.message : "Error al vincular el ejercicio"
                     });
                 }
-
                 const series = ejercicio.series;
                 if (!Array.isArray(series) || series.length === 0) {
                     await eliminarRutina(rutina.id_rutina);
@@ -331,11 +310,10 @@ export const registrarRutina = async (req, res) => {
                         mensaje: "Cada ejercicio debe tener al menos una serie"
                     });
                 }
-
+                // Registra cada serie asociada al ejercicio actual
                 for (let numeroSerie = 0; numeroSerie < series.length; numeroSerie++) {
                     const serie = series[numeroSerie];
                     const repeticiones = Number(serie?.repeticiones);
-
                     if (!Number.isInteger(repeticiones) || repeticiones <= 0) {
                         await eliminarRutina(rutina.id_rutina);
                         return res.status(400).json({
@@ -389,7 +367,7 @@ export const editarRutina = async (req, res) => {
                 mensaje: "El ID de la rutina debe ser un número válido"
             });
         }
-        // 1. Verificar propiedad y existencia de la rutina
+        // 1. Verificar existencia y propiedad de la rutina original
         const { data: rutinaExistente, error: errorExistente } = await obtenerRutinaPorId(numId);
         if (errorExistente || !rutinaExistente) {
             return res.status(404).json({ mensaje: "Rutina no encontrada" });
@@ -402,6 +380,7 @@ export const editarRutina = async (req, res) => {
         if (!nombre || typeof nombre !== "string") {
             return res.status(400).json({ mensaje: "El nombre de la rutina es obligatorio" });
         }
+
         const nombreLimpio = nombre.trim();
         if (nombreLimpio.length === 0 || nombreLimpio.length > 100) {
             return res.status(400).json({ mensaje: "El nombre no es válido o supera los 100 caracteres" });
@@ -459,6 +438,8 @@ export const editarRutina = async (req, res) => {
         }
         const diasCreados = [];
         // 5. Reinsertar los nuevos días, ejercicios y series (Idéntico a la creación)
+
+        // Recorre y registra los nuevos días de la rutina
         for (const dia of diasLimpios) {
             const { data: diaCreado, error: errorDia } = await crearDiaRutina(
                 numId,
@@ -469,6 +450,7 @@ export const editarRutina = async (req, res) => {
                 return res.status(500).json({ mensaje: "Error al registrar los nuevos días de la rutina" });
             }
             const objetoDia = { ...diaCreado, ejercicios: [] };
+            // Vincula cada ejercicio al día correspondiente con su orden
             for (let indice = 0; indice < dia.ejercicios.length; indice++) {
                 const ejercicio = dia.ejercicios[indice];
                 const idEjercicio = Number(ejercicio?.id_ejercicio);
@@ -485,6 +467,7 @@ export const editarRutina = async (req, res) => {
                 }
                 const series = ejercicio.series;
                 if (Array.isArray(series)) {
+                    // Registra cada serie asociada al ejercicio actual
                     for (let numeroSerie = 0; numeroSerie < series.length; numeroSerie++) {
                         const serie = series[numeroSerie];
                         const repeticiones = Number(serie?.repeticiones);
@@ -507,6 +490,7 @@ export const editarRutina = async (req, res) => {
             }
             diasCreados.push(objetoDia);
         }
+        // Retorna la respuesta exitosa con la rutina y sus nuevos datos actualizados
         return res.status(200).json({
             mensaje: "Rutina actualizada correctamente",
             rutina: rutinaActualizada,
@@ -540,6 +524,7 @@ export const editarDiaRutina = async (req, res) => {
         if (Number(diaExistente.rutinas?.id_usuario) !== Number(idUsuarioAutenticado)) {
             return res.status(403).json({ mensaje: "No tienes permiso para modificar este día" });
         }
+        // Filtrar únicamente los campos permitidos para evitar asignación masiva
         const camposPermitidos = ["dia_semana", "nombre_dia"];
         const campos = {};
         for (const campo of camposPermitidos) {
@@ -547,11 +532,13 @@ export const editarDiaRutina = async (req, res) => {
                 campos[campo] = req.body[campo];
             }
         }
+        // Validación para asegurar que el cliente envió al menos un campo a modificar
         if (Object.keys(campos).length === 0) {
             return res.status(400).json({
                 mensaje: "No se proporcionaron datos para actualizar"
             });
         }
+        // Sanitización y normalización del formato de texto
         if (campos.dia_semana !== undefined) {
             if (typeof campos.dia_semana !== "string") {
                 return res.status(400).json({
@@ -620,6 +607,7 @@ export const editarEjercicioRutina = async (req, res) => {
                 campos[campo] = req.body[campo];
             }
         }
+        // Validación para asegurar que el cliente envió al menos un campo a modificar
         if (Object.keys(campos).length === 0) {
             return res.status(400).json({
                 mensaje: "No se proporcionaron datos para actualizar"
@@ -628,6 +616,7 @@ export const editarEjercicioRutina = async (req, res) => {
 
         // VALIDACIÓN PARA ID_EJERCICIO SI LO MANDAN
         if (campos.id_ejercicio !== undefined) {
+            // Valida que el ID del ejercicio sea un entero positivo
             const idEj = Number(campos.id_ejercicio);
             if (!Number.isInteger(idEj) || idEj <= 0) {
                 return res.status(400).json({
@@ -636,7 +625,7 @@ export const editarEjercicioRutina = async (req, res) => {
             }
             campos.id_ejercicio = idEj;
         }
-
+        // Validación de tipos de datos y rangos permitidos
         if (campos.orden !== undefined) {
             const orden = Number(campos.orden);
             if (!Number.isInteger(orden) || orden <= 0) {
@@ -684,6 +673,7 @@ export const editarSerieRutina = async (req, res) => {
         const idUsuarioAutenticado = req.usuario?.id_usuario || req.usuario?.id;
         const { id } = req.params;
         const numId = Number(id);
+        // Verificación de integridad para evitar errores con parámetros nulos, indefinidos o cadenas de texto no numéricas
         if (!id || Number.isNaN(numId)) {
             return res.status(400).json({
                 mensaje: "El ID de la serie debe ser válido"
@@ -709,6 +699,7 @@ export const editarSerieRutina = async (req, res) => {
                 campos[campo] = req.body[campo];
             }
         }
+        // Validación para asegurar que el cliente envió al menos un campo a modificar
         if (Object.keys(campos).length === 0) {
             return res.status(400).json({
                 mensaje: "No se proporcionaron datos para actualizar"
@@ -723,6 +714,7 @@ export const editarSerieRutina = async (req, res) => {
             }
             campos.repeticiones = repeticiones;
         }
+        // Manejo inteligente de campos opcionales para transformarlos en nulos si llegan vacíos
         if (campos.peso !== undefined) {
             if (campos.peso === null || campos.peso === "") {
                 campos.peso = null;
@@ -774,6 +766,7 @@ export const borrarSerieRutina = async (req, res) => {
         const idUsuarioAutenticado = req.usuario?.id_usuario || req.usuario?.id;
         const { id } = req.params;
         const numId = Number(id);
+        // Verificación de integridad para evitar errores con parámetros nulos, indefinidos o cadenas de texto no numéricas
         if (!id || Number.isNaN(numId)) {
             return res.status(400).json({
                 mensaje: "El ID de la serie debe ser válido"
@@ -816,6 +809,7 @@ export const borrarEjercicioRutina = async (req, res) => {
         const idUsuarioAutenticado = req.usuario?.id_usuario || req.usuario?.id;
         const { id } = req.params;
         const numId = Number(id);
+        // Verificación de integridad para evitar errores con parámetros nulos, indefinidos o cadenas de texto no numéricas
         if (!id || Number.isNaN(numId)) {
             return res.status(400).json({
                 mensaje: "El ID del ejercicio de la rutina debe ser válido"
@@ -858,6 +852,7 @@ export const borrarRutina = async (req, res) => {
         const idUsuarioAutenticado = req.usuario?.id_usuario || req.usuario?.id;
         const { id } = req.params;
         const numId = Number(id);
+        // Verificación de integridad para evitar errores con parámetros nulos, indefinidos o cadenas de texto no numéricas
         if (!id || Number.isNaN(numId)) {
             return res.status(400).json({
                 mensaje: "El ID de la rutina debe ser un número válido"

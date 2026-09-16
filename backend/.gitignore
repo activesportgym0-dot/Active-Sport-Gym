@@ -1,3 +1,5 @@
+# Ignorar carpetas de dependencias
 node_modules/
+# Ignorar archivos de entorno con credenciales
 .env
 node_modules

@@ -43,7 +43,6 @@ export const obtenerPerfil = async (req, res) => {
         });
     }
 };
-
 // EDITAR PERFIL COMPLETO (DATOS DE TEXTO)
 export const editarPerfil = async (req, res) => {
     try {
@@ -253,39 +252,32 @@ export const editarPerfil = async (req, res) => {
         });
     }
 };
-
 // CAMBIAR FOTO DE PERFIL CON ARCHIVO CLOUDINARY
 export const cambiarFotoPerfil = async (req, res) => {
     try {
         const { id_usuario } = req.params;
-
         if (!id_usuario || isNaN(id_usuario)) {
             return res.status(400).json({
                 mensaje: "El ID del usuario debe ser un número válido"
             });
         }
-
         if (!req.file) {
             return res.status(400).json({
                 mensaje: "Debes adjuntar una imagen"
             });
         }
-
         // req.file.path contiene la URL pública asignada por Cloudinary
         const urlImagen = req.file.path;
-
         const { data, error } = await actualizarFotoPerfil(
             Number(id_usuario),
             urlImagen
         );
-
         if (error) {
             console.error("Error al actualizar foto de perfil en BD:", error);
             return res.status(500).json({
                 mensaje: "No fue posible guardar la foto de perfil en la base de datos"
             });
         }
-
         return res.status(200).json({
             mensaje: "Foto de perfil actualizada correctamente",
             foto_perfil: urlImagen,
