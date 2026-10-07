@@ -4,29 +4,47 @@ import { supabase } from "../config/supabase.js";
 import { crearUser, obtenerUsuarioPorEmail } from "../models/usuarioModel.js";
 import { crearPerfilAutomatico } from "../models/perfilModel.js";
 import { enviarCodigoVerificacion } from "../utils/emails/emailCodigoVerificacion.js";
-// REGISTRO DE USUARIOS
+
+// REGISTRO DE USUARIOS CON VALIDACIÓN DE CONFIRMAR CONTRASEÑA
 export const registro = async (req, res) => {
   try {
-    let { nombre, apellido, correo, telefono, cedula, edad, peso, altura, contraseña } = req.body;
-    // 1. Valido que no me falte ningún campo obligatorio al registrarme
-    if (!nombre || !apellido || !correo || !telefono || !cedula || !edad || !peso || !altura || !contraseña) {
+    let { 
+      nombre, 
+      apellido, 
+      correo, 
+      telefono, 
+      cedula, 
+      edad, 
+      peso, 
+      altura, 
+      contraseña, 
+      confirmarContrasena 
+    } = req.body;
+    // 1. Validar que ningún campo obligatorio esté vacío
+    if (!nombre || !apellido || !correo || !telefono || !cedula || !edad || !peso || !altura || !contraseña || !confirmarContrasena) {
       return res.status(400).json({
         mensaje: "Todos los campos son requeridos"
       });
     }
-    // Limpio los espacios en blanco y dejo el correo en minúsculas
+    // 2. Validar que la contraseña y la confirmación sean idénticas
+    if (contraseña !== confirmarContrasena) {
+      return res.status(400).json({
+        mensaje: "Las contraseñas no coinciden"
+      });
+    }
+    // Limpieza y formateo de campos de texto
     nombre = nombre.trim();
     apellido = apellido.trim();
     correo = correo.trim().toLowerCase();
     telefono = telefono.trim();
-    // Verifico que el formato del correo sea válido con mi expresión regular
+    // Validar formato del correo
     const expresionCorreo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!expresionCorreo.test(correo)) {
       return res.status(400).json({
         mensaje: "El correo electrónico no tiene un formato válido"
       });
     }
-    // 2. Compruebo si el usuario ya existe consultando por correo
+    // 3. Verificar disponibilidad del correo
     const { data: usuarioExistente, error: errorBusqueda } = await obtenerUsuarioPorEmail(correo);
     if (errorBusqueda) {
       console.error("Error al verificar correo:", errorBusqueda);
@@ -39,13 +57,13 @@ export const registro = async (req, res) => {
         mensaje: "El correo electrónico ya está registrado"
       });
     }
-    // 3. Encripto la contraseña con bcrypt y le asigno su rol por defecto como cliente
+    // 4. Encriptar contraseña y definir rol por defecto
     const hashedPassword = await bcrypt.hash(contraseña, 10);
     const rolPorDefecto = "cliente";
-    // 4. Genero mi código de verificación de 6 dígitos con expiración de 15 minutos
+    // 5. Generar código de verificación (6 dígitos, expira en 15 min)
     const codigoVerificacion = Math.floor(100000 + Math.random() * 900000).toString();
     const codigoVerificacionExpiracion = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-    // 5. Guardo el nuevo usuario en mi base de datos de Supabase
+    // 6. Insertar en la base de datos
     const { data: usuarioCreado, error } = await crearUser(
       nombre,
       apellido,
@@ -71,12 +89,12 @@ export const registro = async (req, res) => {
         mensaje: "Error al crear el usuario en la base de datos"
       });
     }
-    // 6. Creo su perfil de forma automática en la tabla perfil vinculándolo con su id
+    // 7. Crear perfil automático
     const { data: perfilCreado, error: errorPerfil } = await crearPerfilAutomatico(usuarioCreado.id_usuario);
     if (errorPerfil) {
       console.error("Error al crear perfil automático:", errorPerfil);
     }
-    // 7. Envío el correo con el código usando Brevo
+    // 8. Enviar correo de verificación
     const resultadoEnvio = await enviarCodigoVerificacion(correo, nombre, codigoVerificacion);
     const usuarioRespuesta = {
       id_usuario: usuarioCreado.id_usuario,
@@ -86,7 +104,7 @@ export const registro = async (req, res) => {
     };
     if (!resultadoEnvio.exito) {
       return res.status(201).json({
-        mensaje: "Tu cuenta fue creada y tu perfil generado, pero hubo un problema al enviar el código a tu correo. Contacta con soporte.",
+        mensaje: "Tu cuenta fue creada, pero hubo un problema al enviar el código a tu correo. Contacta con soporte.",
         correoEnviado: false,
         usuario: usuarioRespuesta,
         perfil: perfilCreado || null

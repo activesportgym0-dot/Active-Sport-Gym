@@ -10,17 +10,18 @@ import {
 } from "../models/productoModel.js";
 import { enviarAlertaStockBajo } from "../utils/emails/plantillaAlertaStock.js";
 import { enviarCorreoStockDisponible } from "../utils/emails/plantillaStockDisponible.js";
+
 // Extraigo y valido mi ID de usuario desde el token decodificado
 const obtenerIdUsuario = (req) => {
   const raw = req.usuario?.id_usuario || req.usuario?.id;
   const id = Number(raw);
   return Number.isInteger(id) ? id : null;
 };
+
 // [CLIENTE / ADMIN] Listar productos con filtros
 export const listarProductos = async (req, res) => {
   try {
     const { id_categoria, busqueda } = req.query;
-    // Consulto en la base de datos los productos según los filtros que me pasen
     const { data, error } = await obtenerProductosBD({ id_categoria, busqueda });
     if (error) {
       return res.status(500).json({ error: "Error al consultar los productos", detalle: error.message });
@@ -31,11 +32,11 @@ export const listarProductos = async (req, res) => {
     return res.status(500).json({ error: "Ocurrió un error interno al obtener el catálogo de productos" });
   }
 };
+
 // [CLIENTE / ADMIN] Obtener detalle de un producto
 export const verDetalleProducto = async (req, res) => {
   try {
     const id_producto = Number(req.params.id);
-    // Valido que el ID que me mandan en los parámetros sea un número entero válido
     if (!Number.isInteger(id_producto) || id_producto <= 0) {
       return res.status(400).json({ error: "El ID del producto no es válido" });
     }
@@ -52,7 +53,8 @@ export const verDetalleProducto = async (req, res) => {
     return res.status(500).json({ error: "Error interno al obtener el detalle del producto" });
   }
 };
-// [ADMIN] Crear producto (con subida de imagen a Cloudinary)
+
+// [ADMIN] Crear producto (Soporta tanto Consumibles como Materiales/Ropa)
 export const crearProducto = async (req, res) => {
   try {
     const body = req.body || {};
@@ -60,6 +62,7 @@ export const crearProducto = async (req, res) => {
       id_categoria,
       nombre,
       marca,
+      tipo_producto, // 'consumible' o 'material' (enviado desde Flutter)
       sabor,
       peso_neto,
       servicios,
@@ -69,30 +72,37 @@ export const crearProducto = async (req, res) => {
       beneficios,
       modo_uso
     } = body;
-    // Me aseguro de que los campos obligatorios principales vengan completos
+
+    // Validamos los campos principales obligatorios
     if (!id_categoria || !nombre || !precio) {
       return res.status(400).json({ error: "Los campos id_categoria, nombre y precio son obligatorios." });
     }
-    // Guardo la URL pública que me devuelve Cloudinary con req.file
+
     const imagen_url = req.file ? req.file.path : null;
+    const esConsumible = tipo_producto === 'consumible';
+
     const nuevoProducto = {
       id_categoria: Number(id_categoria),
       nombre: nombre.trim(),
       marca: marca ? marca.trim() : null,
-      sabor: sabor ? sabor.trim() : null,
-      peso_neto: peso_neto ? peso_neto.trim() : null,
-      servicios: servicios ? servicios.trim() : null,
+      tipo_producto: tipo_producto ? tipo_producto.trim() : 'consumible',
+      // Si es material, guardamos estos campos específicos como null automáticamente
+      sabor: esConsumible && sabor ? sabor.trim() : null,
+      peso_neto: esConsumible && peso_neto ? peso_neto.trim() : null,
+      servicios: esConsumible && servicios ? servicios.trim() : null,
       precio: Number(precio),
       stock: stock ? Number(stock) : 0,
       descripcion: descripcion ? descripcion.trim() : null,
-      beneficios: beneficios ? beneficios.trim() : null,
-      modo_uso: modo_uso ? modo_uso.trim() : null,
+      beneficios: esConsumible && beneficios ? beneficios.trim() : null,
+      modo_uso: esConsumible && modo_uso ? modo_uso.trim() : null,
       imagen_url
     };
+
     const { data, error } = await crearProductoBD(nuevoProducto);
     if (error) {
       return res.status(500).json({ error: "Error al registrar el producto", detalle: error.message });
     }
+
     return res.status(201).json({
       mensaje: "Producto registrado con éxito",
       producto: data
@@ -102,90 +112,79 @@ export const crearProducto = async (req, res) => {
     return res.status(500).json({ error: "Ocurrió un error interno al crear el producto" });
   }
 };
-// [ADMIN] Actualizar producto, enviar alerta de stock bajo o notificar reabastecimiento
+
+// [ADMIN] Actualizar producto
 export const actualizarProducto = async (req, res) => {
   try {
     const id_producto = Number(req.params.id);
-    // Valido que el ID sea correcto antes de buscarlo
     if (!Number.isInteger(id_producto) || id_producto <= 0) {
       return res.status(400).json({ error: "El ID del producto no es válido" });
     }
+
     const { data: productoActual } = await obtenerProductoPorIdBD(id_producto);
     if (!productoActual) {
       return res.status(404).json({ error: "El producto a actualizar no existe" });
     }
+
     const body = req.body || {};
     const nuevoStock = body.stock !== undefined ? Number(body.stock) : productoActual.stock;
-    // Mantengo la imagen anterior de Cloudinary si no subo una nueva en esta actualización
     const imagen_url = req.file ? req.file.path : productoActual.imagen_url;
+    const tipoActual = body.tipo_producto || productoActual.tipo_producto || 'consumible';
+    const esConsumible = tipoActual === 'consumible';
+
     const datosActualizados = {
       id_categoria: body.id_categoria ? Number(body.id_categoria) : productoActual.id_categoria,
       nombre: body.nombre ? body.nombre.trim() : productoActual.nombre,
       marca: body.marca !== undefined ? body.marca : productoActual.marca,
-      sabor: body.sabor !== undefined ? body.sabor : productoActual.sabor,
-      peso_neto: body.peso_neto !== undefined ? body.peso_neto : productoActual.peso_neto,
-      servicios: body.servicios !== undefined ? body.servicios : productoActual.servicios,
+      tipo_producto: tipoActual,
+      sabor: esConsumible ? (body.sabor !== undefined ? body.sabor : productoActual.sabor) : null,
+      peso_neto: esConsumible ? (body.peso_neto !== undefined ? body.peso_neto : productoActual.peso_neto) : null,
+      servicios: esConsumible ? (body.servicios !== undefined ? body.servicios : productoActual.servicios) : null,
       precio: body.precio ? Number(body.precio) : productoActual.precio,
       stock: nuevoStock,
       descripcion: body.descripcion !== undefined ? body.descripcion : productoActual.descripcion,
-      beneficios: body.beneficios !== undefined ? body.beneficios : productoActual.beneficios,
-      modo_uso: body.modo_uso !== undefined ? body.modo_uso : productoActual.modo_uso,
+      beneficios: esConsumible ? (body.beneficios !== undefined ? body.beneficios : productoActual.beneficios) : null,
+      modo_uso: esConsumible ? (body.modo_uso !== undefined ? body.modo_uso : productoActual.modo_uso) : null,
       imagen_url
     };
+
     const { data, error } = await actualizarProductoBD(id_producto, datosActualizados);
     if (error) {
       return res.status(500).json({ error: "Error al actualizar el producto", detalle: error.message });
     }
-// 1. Si el stock pasa de 0 a mayor que 0, notifica a los clientes interesados y limpia las alertas
-if (productoActual.stock === 0 && nuevoStock > 0) {
-  try {
-    const { data: alertas, error: errAlertas } = await obtenerUsuariosParaAvisoStockBD(id_producto);
-    if (errAlertas) {
-      console.error("Error al obtener usuarios de alertas:", errAlertas.message);
-    }
-    if (alertas && alertas.length > 0) {
-      console.log(`[AVISO STOCK] Se encontraron ${alertas.length} solicitud(es) para '${data.nombre}'.`);
-      for (const alerta of alertas) {
-        // Muestra en consola la estructura del registro recuperado
-        console.log("Datos de la alerta recuperada:", JSON.stringify(alerta));
-        // Intenta obtener el correo de la relación de Supabase o del objeto plano
-        const correoDestino = alerta.usuarios?.correo || alerta.correo || alerta.correo;
-        const nombreCliente = alerta.usuarios?.nombre || alerta.nombre || "Cliente";
-        if (correoDestino) {
-          console.log(`[AVISO STOCK] Enviando correo a: ${correoDestino}...`);
-          const resultadoInfo = await enviarCorreoStockDisponible({
-            correoCliente: correoDestino,
-            nombreCliente,
-            producto: data
-          });
-          console.log(`[AVISO STOCK] Correo enviado exitosamente. MessageId: ${resultadoInfo.messageId}`);
-        } else {
-          console.warn("[AVISO STOCK] No se encontró la propiedad 'correo' en el objeto del usuario.");
+
+    // Lógica de alertas de stock (mantenida igual)
+    if (productoActual.stock === 0 && nuevoStock > 0) {
+      try {
+        const { data: alertas, error: errAlertas } = await obtenerUsuariosParaAvisoStockBD(id_producto);
+        if (alertas && alertas.length > 0) {
+          for (const alerta of alertas) {
+            const correoDestino = alerta.usuarios?.correo || alerta.correo;
+            const nombreCliente = alerta.usuarios?.nombre || alerta.nombre || "Cliente";
+            if (correoDestino) {
+              await enviarCorreoStockDisponible({ correoCliente: correoDestino, nombreCliente, producto: data });
+            }
+          }
+          await eliminarAlertasStockBD(id_producto);
         }
+      } catch (errAviso) {
+        console.error("Error al notificar reabastecimiento:", errAviso);
       }
-      await eliminarAlertasStockBD(id_producto);
-      console.log(`[AVISO STOCK] Solicitudes limpiadas con éxito.`);
     }
-  } catch (errAviso) {
-    console.error("Error al notificar reabastecimiento a clientes:", errAviso);
-  }
-}
-    // 2. Si el stock cae por debajo del límite mínimo establecido, envío una alerta interna por correo
+
     const LIMITE_MINIMO_STOCK = 3;
     if (nuevoStock <= LIMITE_MINIMO_STOCK) {
       try {
         await enviarAlertaStockBajo({
-          producto: {
-            nombre: data.nombre,
-            categoria: `Categoría ID ${data.id_categoria}`
-          },
+          producto: { nombre: data.nombre, categoria: `Categoría ID ${data.id_categoria}` },
           stockActual: nuevoStock,
           limiteMinimo: LIMITE_MINIMO_STOCK
         });
       } catch (errEmail) {
-        console.error("Error al enviar el correo de alerta de stock:", errEmail.message);
+        console.error("Error al enviar alerta de stock bajo:", errEmail.message);
       }
     }
+
     return res.status(200).json({
       mensaje: "Producto actualizado con éxito",
       producto: data
@@ -195,6 +194,7 @@ if (productoActual.stock === 0 && nuevoStock > 0) {
     return res.status(500).json({ error: "Error interno al actualizar el producto", detalle: error.message });
   }
 };
+
 // [ADMIN] Eliminar producto
 export const borrarProducto = async (req, res) => {
   try {
@@ -215,6 +215,7 @@ export const borrarProducto = async (req, res) => {
     return res.status(500).json({ error: "Error interno al borrar el producto" });
   }
 };
+
 // [CLIENTE] Registrar solicitud de aviso de stock
 export const solicitarAvisoStock = async (req, res) => {
   try {
@@ -230,7 +231,6 @@ export const solicitarAvisoStock = async (req, res) => {
     if (!producto) {
       return res.status(404).json({ error: "El producto no existe" });
     }
-    // Valido que el producto realmente esté agotado (0) para permitirme registrar la alerta
     if (producto.stock > 0) {
       return res.status(400).json({ mensaje: "El producto actualmente tiene unidades disponibles." });
     }
