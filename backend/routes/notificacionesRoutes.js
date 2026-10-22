@@ -19,6 +19,6 @@ router.put("/marcar-todas-leidas", verificarToken, verificarCliente, marcarTodas
 // Rutas exclusivas del administrador (crear y eliminar notificaciones)
 // El middleware de multer va primero para poder procesar multipart/form-data y armar req.body
 router.post("/", uploadNotificacion.single("imagen"), verificarToken, verificarAdmin, crearNotificacion);
-router.delete("/:id", verificarToken, verificarAdmin, borrarNotificacion);
+router.delete("/:id", verificarToken, verificarAdmin,verificarCliente, borrarNotificacion);
 
 export default router;

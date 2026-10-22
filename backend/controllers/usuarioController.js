@@ -1,4 +1,3 @@
-// Importamos las funciones del modelo de usuarios
 import {
     obtenerTodos,
     obtenerUsuarioPorId,
@@ -29,6 +28,7 @@ export const listarUsuarios = async (req, res) => {
         });
     }
 };
+
 // OBTENER USUARIO POR ID
 export const obtenerUsuario = async (req, res) => {
     try {
@@ -57,6 +57,7 @@ export const obtenerUsuario = async (req, res) => {
         });
     }
 };
+
 // ACTUALIZAR USUARIO
 export const editarUsuario = async (req, res) => {
     try {
@@ -67,7 +68,7 @@ export const editarUsuario = async (req, res) => {
                 mensaje: "El ID del usuario debe ser un número válido"
             });
         }
-        // CAMPOS PERMITIDOS PARA ACTUALIZAR
+        // CAMPOS PERMITIDOS PARA ACTUALIZAR (Incluyendo is_active)
         const camposPermitidos = [
             "nombre",
             "apellido",
@@ -77,6 +78,7 @@ export const editarUsuario = async (req, res) => {
             "edad",
             "peso",
             "altura",
+            "is_active"
         ];
         const campos = {};
         // TOMAR SOLAMENTE LOS CAMPOS ENVIADOS
@@ -205,6 +207,52 @@ export const editarUsuario = async (req, res) => {
         });
     }
 };
+
+// CAMBIAR ESTADO DE USUARIO (ACTIVAR / DESACTIVAR) - ESPECÍFICO PARA ADMIN
+export const cambiarEstadoUsuario = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!id || isNaN(id)) {
+            return res.status(400).json({
+                mensaje: "El ID del usuario debe ser un número válido"
+            });
+        }
+
+        const { is_active } = req.body;
+        if (is_active === undefined || typeof is_active !== "boolean") {
+            return res.status(400).json({
+                mensaje: "Debes especificar un valor booleano para is_active (true o false)"
+            });
+        }
+
+        const { data, error } = await actualizarUsuario(Number(id), { is_active });
+
+        if (error) {
+            console.error("Error al cambiar estado de usuario:", error);
+            return res.status(500).json({
+                mensaje: "No fue posible actualizar el estado del usuario",
+                error: error.message
+            });
+        }
+
+        if (!data) {
+            return res.status(404).json({
+                mensaje: "Usuario no encontrado"
+            });
+        }
+
+        return res.status(200).json({
+            mensaje: `La cuenta ha sido ${is_active ? "activada" : "desactivada"} exitosamente`,
+            usuario: data
+        });
+    } catch (error) {
+        console.error("Error inesperado al cambiar estado:", error);
+        return res.status(500).json({
+            mensaje: "Error interno del servidor"
+        });
+    }
+};
+
 // ELIMINAR USUARIO
 export const borrarUsuario = async (req, res) => {
     try {
@@ -226,7 +274,6 @@ export const borrarUsuario = async (req, res) => {
                 error: error.message
             });
         }
-        // AGREGAR ESTA VALIDACIÓN
         if (!data) {
             return res.status(404).json({
                 mensaje: "Usuario no encontrado para eliminar"

@@ -34,8 +34,6 @@ import carritoRouter from "./routes/carritoRoutes.js";
 
 import pedidosRouter from "./routes/pedidosRoutes.js";
 
-import historiaGimnasioRouter from "./routes/historiaGimnasioRoutes.js";
-
 import reglasHorariosRouter from "./routes/reglasHorariosRoutes.js";
 
 import chatearConGym from "./routes/chatRoutes.js";
@@ -100,9 +98,6 @@ app.use("/carrito", carritoRouter);
 
 // Rutas de pedidos
 app.use("/pedidos", pedidosRouter);
-
-// Rutas de historia del gimnasio
-app.use("/historia-gimnasio", historiaGimnasioRouter);
 
 // Rutas de reglas y horarios
 app.use("/reglas-horarios", reglasHorariosRouter);

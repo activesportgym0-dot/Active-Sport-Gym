@@ -123,7 +123,8 @@ export const registro = async (req, res) => {
     });
   }
 };
-// LOGIN DE USUARIO (Con verificación activa)
+
+// LOGIN DE USUARIO (Con verificación activa y validación de is_active)
 export const login = async (req, res) => {
   try {
     let { correo, contraseña } = req.body;
@@ -160,6 +161,12 @@ export const login = async (req, res) => {
         mensaje: "Tu cuenta no ha sido verificada. Por favor ingresa el código enviado a tu correo antes de iniciar sesión."
       });
     }
+    // Valido que la cuenta esté activa (no desactivada por el admin)
+    if (usuario.is_active === false) {
+      return res.status(403).json({
+        mensaje: "Tu cuenta ha sido desactivada. Por favor comunícate con soporte."
+      });
+    }
     // Genero el token JWT con su id y su rol para la sesión
     const token = jwt.sign(
       { id_usuario: usuario.id_usuario, rol: usuario.rol },
@@ -183,6 +190,7 @@ export const login = async (req, res) => {
     });
   }
 };
+
 // VERIFICAR CUENTA CON CÓDIGO DE 6 DÍGITOS
 export const verificarCuenta = async (req, res) => {
   try {
@@ -198,7 +206,7 @@ export const verificarCuenta = async (req, res) => {
       .from("usuarios")
       .select("id_usuario, correo, isVerified, codigoVerificacion, codigoVerificacionExpiracion")
       .eq("correo", correo.trim().toLowerCase())
-    .single();
+      .single();
     if (errorUsuario || !usuario) {
       return res.status(404).json({
         mensaje: "Usuario no encontrado"

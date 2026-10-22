@@ -4,7 +4,7 @@ import { supabase } from "../config/supabase.js";
 export const obtenerTodos = async () => {
   const { data, error } = await supabase
     .from("usuarios")
-    .select("id_usuario, nombre, correo, telefono, cedula, rol, fecha_registro")
+    .select("id_usuario, nombre, correo, telefono, cedula, rol, fecha_registro,is_active")
     .order("id_usuario", { ascending: true });
   return { data, error };
 };
@@ -13,7 +13,7 @@ export const obtenerTodos = async () => {
 export const obtenerUsuarioPorId = async (id) => {
   const { data, error } = await supabase
     .from("usuarios")
-    .select("id_usuario, nombre, apellido, correo, telefono, cedula, edad, peso, altura, rol, fecha_registro")
+    .select("id_usuario, nombre, apellido, correo, telefono, cedula, edad, peso, altura, rol, fecha_registro, is_active")
     .eq("id_usuario", id)
     .maybeSingle();
   return { data, error };

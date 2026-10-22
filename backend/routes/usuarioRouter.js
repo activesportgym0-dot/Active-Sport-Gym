@@ -3,6 +3,7 @@ import {
     listarUsuarios,
     obtenerUsuario,
     editarUsuario,
+    cambiarEstadoUsuario,
     borrarUsuario
 } from "../controllers/usuarioController.js";
 
@@ -18,6 +19,9 @@ router.get("/:id", verificarToken, verificarAdmin, obtenerUsuario);
 
 // ACTUALIZAR USUARIO (Requiere token)
 router.put("/:id", verificarToken, editarUsuario);
+
+// CAMBIAR ESTADO DE USUARIO - ACTIVAR / DESACTIVAR (Solo Admin)
+router.patch("/:id/estado", verificarToken, verificarAdmin, cambiarEstadoUsuario);
 
 // ELIMINAR USUARIO (Solo Admin)
 router.delete("/:id", verificarToken, verificarAdmin, borrarUsuario);
