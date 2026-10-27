@@ -4,13 +4,19 @@ import { supabase } from "../config/supabase.js";
 // OBTENER TODOS LOS EJERCICIOS
 export const obtenerTodosEjercicios = async () => {
     const { data, error } = await supabase
-        .from("ejercicios")
+        .from('ejercicios')
         .select(`
             id_ejercicio,
             nombre,
+            maquina,
+            descripcion,
+            instrucciones,
+            beneficios,
+            rango_movimiento,
+            respiracion,
+            ritmo_movimiento,
             imagen,
             gif_url,
-            maquina,
             ejercicio_categoria (
                 id_categoria,
                 categoria_ejercicios (
@@ -19,7 +25,7 @@ export const obtenerTodosEjercicios = async () => {
                 )
             )
         `)
-        .order("id_ejercicio", { ascending: true });
+        .order('id_ejercicio', { ascending: true });
     return { data, error };
 };
 

@@ -1,5 +1,10 @@
 import { Router } from "express";
-import { registro, login, verificarCuenta } from "../controllers/authController.js";
+import { 
+  registro, 
+  login, 
+  verificarCuenta, 
+  reenviarCodigo 
+} from "../controllers/authController.js";
 import { 
     solicitarCodigo, 
     cambiarContraseñaConCodigo 
@@ -15,6 +20,9 @@ router.post("/login", login);
 
 // VERIFICAR CUENTA
 router.post("/verificar-cuenta", verificarCuenta);
+
+// REENVIAR CÓDIGO DE VERIFICACIÓN
+router.post("/reenviar-codigo", reenviarCodigo);
 
 // SOLICITUD DE CÓDIGO DE RECUPERACIÓN
 router.post("/recuperar/solicitar", solicitarCodigo);
