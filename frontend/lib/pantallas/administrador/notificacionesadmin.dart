@@ -4,34 +4,98 @@ import 'package:frontend/componentes/administrador/notificacion/tarjeta_notifica
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
-import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart'; // 👈 Importación de la burbuja de la IA
-
+import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
+import 'package:frontend/models/notificacion_model.dart';
+import 'package:frontend/services/notificacion_service.dart'; // 👈 Importación de la burbuja de la IA
 class NotificacionesAdminScreen extends StatefulWidget {
   const NotificacionesAdminScreen({super.key});
-
   @override
   State<NotificacionesAdminScreen> createState() => _NotificacionesAdminScreenState();
 }
-
 class _NotificacionesAdminScreenState extends State<NotificacionesAdminScreen> {
-  final List<Map<String, dynamic>> _notificaciones = [
-    {
-      'id': 1,
-      'titulo': '¡Nuevo Stock de Proteínas!',
-      'mensaje': 'Ya llegó la nueva mercancía de Whey Gold Standard y Smart Gainer.',
-      'tipo': 'stock',
-      'destino': 'Todos los clientes',
-      'fecha': '06 Oct 2026',
-    },
-    {
-      'id': 2,
-      'titulo': 'Mantenimiento de Maquinaria',
-      'mensaje': 'El área de peso libre estará cerrada mañana en la mañana por mantenimiento.',
-      'tipo': 'evento',
-      'destino': 'Todos los clientes',
-      'fecha': '05 Oct 2026',
-    },
-  ];
+  // Notificaciones reales que vienen del servidor (GET /notificaciones/admin)
+  List<NotificacionModel> _notificaciones = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarNotificaciones();
+  }
+
+  Future<void> _cargarNotificaciones() async {
+    if (mounted) setState(() => _isLoading = true);
+    try {
+      final notificaciones = await NotificacionService.obtenerTodas();
+      if (!mounted) return;
+      setState(() {
+        _notificaciones = notificaciones;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _mostrarMensaje(
+        'Error al cargar las notificaciones: ${e.toString().replaceFirst('Exception: ', '')}',
+        exito: false,
+      );
+    }
+  }
+
+  void _mostrarMensaje(String mensaje, {required bool exito}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: exito ? Colors.green : Colors.redAccent,
+      ),
+    );
+  }
+
+  Future<void> _crearNotificacion(Map<String, dynamic> datos) async {
+    final resultado = await NotificacionService.crearNotificacion(
+      titulo: datos['titulo'].toString(),
+      mensaje: datos['mensaje'].toString(),
+      tipo: datos['tipo'].toString(),
+      idUsuario: datos['id_usuario'] as int?,
+    );
+    if (!mounted) return;
+
+    final exito = resultado['success'] == true;
+    _mostrarMensaje(resultado['message']?.toString() ?? 'Operación finalizada', exito: exito);
+    if (exito) await _cargarNotificaciones();
+  }
+
+  Future<void> _eliminarNotificacion(NotificacionModel noti) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.grisOscuro,
+        title: const Text('Eliminar Notificación', style: TextStyle(color: Colors.white)),
+        content: Text(
+          '¿Estás segura de que deseas eliminar "${noti.titulo}"?',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.white)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Eliminar', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true || !mounted) return;
+
+    final resultado = await NotificacionService.eliminarNotificacion(noti.idNotificacion);
+    if (!mounted) return;
+
+    final exito = resultado['success'] == true;
+    _mostrarMensaje(resultado['message']?.toString() ?? 'Operación finalizada', exito: exito);
+    if (exito) await _cargarNotificaciones();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -81,32 +145,42 @@ class _NotificacionesAdminScreenState extends State<NotificacionesAdminScreen> {
                   ),
                   const SizedBox(height: 5),
                   Expanded(
-                    child: _notificaciones.isEmpty
-                        ? Center(
-                            child: Text(
-                              'No hay notificaciones creadas',
-                              style: EstiloTexto.hintTexto,
-                            ),
+                    child: _isLoading
+                        ? const Center(
+                            child: CircularProgressIndicator(color: AppColors.verdePrimario),
                           )
-                        : ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: _notificaciones.length,
-                            itemBuilder: (context, index) {
-                              final noti = _notificaciones[index];
-                              return TarjetaNotificacionAdmin(
-                                noti: noti,
-                                onDelete: () {
-                                  setState(() {
-                                    _notificaciones.removeAt(index);
-                                  });
-                                },
-                              );
-                            },
+                        : RefreshIndicator(
+                            color: AppColors.verdePrimario,
+                            onRefresh: _cargarNotificaciones,
+                            child: _notificaciones.isEmpty
+                                ? ListView(
+                                    physics: const AlwaysScrollableScrollPhysics(),
+                                    children: [
+                                      const SizedBox(height: 120),
+                                      Center(
+                                        child: Text(
+                                          'No hay notificaciones creadas',
+                                          style: EstiloTexto.hintTexto,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : ListView.builder(
+                                    physics: const AlwaysScrollableScrollPhysics(),
+                                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                                    itemCount: _notificaciones.length,
+                                    itemBuilder: (context, index) {
+                                      final noti = _notificaciones[index];
+                                      return TarjetaNotificacionAdmin(
+                                        noti: noti.toMapaTarjeta(),
+                                        onDelete: () => _eliminarNotificacion(noti),
+                                      );
+                                    },
+                                  ),
                           ),
                   ),
                 ],
               ),
-
               // 🌟 Burbuja de la IA interactiva y arrastrable por toda la pantalla
               const Positioned.fill(
                 child: BurbujaMiniChatModal(),
@@ -126,7 +200,6 @@ class _NotificacionesAdminScreenState extends State<NotificacionesAdminScreen> {
       ),
     );
   }
-
   void _mostrarModalCrear(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -137,11 +210,7 @@ class _NotificacionesAdminScreenState extends State<NotificacionesAdminScreen> {
       ),
       builder: (context) {
         return ModalCrearNotificacion(
-          onCrear: (nuevaNoti) {
-            setState(() {
-              _notificaciones.insert(0, nuevaNoti);
-            });
-          },
+          onCrear: (datos) => _crearNotificacion(datos),
         );
       },
     );

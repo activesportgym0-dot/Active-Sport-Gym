@@ -1,23 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
-
 class ModalCrearNotificacion extends StatefulWidget {
   final Function(Map<String, dynamic> nuevaNoti) onCrear;
-
   const ModalCrearNotificacion({super.key, required this.onCrear});
-
   @override
   State<ModalCrearNotificacion> createState() => _ModalCrearNotificacionState();
 }
-
 class _ModalCrearNotificacionState extends State<ModalCrearNotificacion> {
   final tituloController = TextEditingController();
   final mensajeController = TextEditingController();
   final idUsuarioController = TextEditingController();
   String tipoSeleccionado = 'stock';
   bool enviarATodos = true;
-
+  String? errorMensaje;
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -116,6 +113,7 @@ class _ModalCrearNotificacionState extends State<ModalCrearNotificacion> {
                   TextField(
                     controller: idUsuarioController,
                     keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     style: EstiloTexto.campoTexto,
                     decoration: InputDecoration(
                       labelText: 'ID del Usuario específico',
@@ -133,6 +131,12 @@ class _ModalCrearNotificacionState extends State<ModalCrearNotificacion> {
               ],
             ),
           ),
+          if (errorMensaje != null) ...[
+            Text(
+              errorMensaje!,
+              style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+            ),
+          ],
           const SizedBox(height: 10),
           Row(
             children: [
@@ -153,20 +157,30 @@ class _ModalCrearNotificacionState extends State<ModalCrearNotificacion> {
                     foregroundColor: AppColors.fondoNegro,
                   ),
                   onPressed: () {
-                    if (tituloController.text.trim().isEmpty || mensajeController.text.trim().isEmpty) {
+                    final titulo = tituloController.text.trim();
+                    final mensaje = mensajeController.text.trim();
+
+                    if (titulo.isEmpty || mensaje.isEmpty) {
+                      setState(() => errorMensaje = 'El título y el mensaje son obligatorios.');
                       return;
                     }
 
-                    final nuevaNoti = {
-                      'id': DateTime.now().millisecondsSinceEpoch,
-                      'titulo': tituloController.text.trim(),
-                      'mensaje': mensajeController.text.trim(),
-                      'tipo': tipoSeleccionado,
-                      'destino': enviarATodos ? 'Todos los clientes' : 'Usuario ID: ${idUsuarioController.text}',
-                      'fecha': '07 Oct 2026',
-                    };
+                    int? idUsuario;
+                    if (!enviarATodos) {
+                      idUsuario = int.tryParse(idUsuarioController.text.trim());
+                      if (idUsuario == null || idUsuario <= 0) {
+                        setState(() => errorMensaje = 'Ingresa un ID de usuario válido.');
+                        return;
+                      }
+                    }
 
-                    widget.onCrear(nuevaNoti);
+                    // idUsuario null = notificación global para todos los clientes
+                    widget.onCrear({
+                      'titulo': titulo,
+                      'mensaje': mensaje,
+                      'tipo': tipoSeleccionado,
+                      'id_usuario': idUsuario,
+                    });
                     Navigator.pop(context);
                   },
                   child: Text('ENVIAR', style: EstiloTexto.botonPrincipal.copyWith(fontSize: 14, color: AppColors.fondoNegro)),

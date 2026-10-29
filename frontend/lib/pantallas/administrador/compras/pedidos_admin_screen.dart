@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
+import 'package:frontend/core/formato.dart';
 import 'package:frontend/componentes/fondo.dart';
 import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
+import 'package:frontend/models/pedido_model.dart';
+import 'package:frontend/services/pedido_service.dart';
 
 class PedidosAdminScreen extends StatefulWidget {
   const PedidosAdminScreen({super.key});
@@ -13,41 +16,44 @@ class PedidosAdminScreen extends StatefulWidget {
 
 class _PedidosAdminScreenState extends State<PedidosAdminScreen> {
   String estadoFiltro = 'Todos';
-  final List<String> estadosPermitidos = ['Todos', 'Pendiente', 'Aceptado', 'Completado', 'Cancelado'];
+  final List<String> estadosPermitidos = ['Todos', ...PedidoModel.estados];
 
-  // Lista simulada según la respuesta de obtenerTodosPedidos BD
-  final List<Map<String, dynamic>> _pedidosGlobales = [
-    {
-      'id_pedido': 1001,
-      'total': 115000,
-      'estado': 'Pendiente',
-      'created_at': '2026-10-16 08:30',
-      'usuarios': {
-        'nombre': 'Luisa Carvajal',
-        'correo': 'luisa@gmail.com',
-      },
-      'detalle_pedidos': [
-        {'nombre': 'Army BCAA', 'cantidad': 1, 'precio_unitario': 115000}
-      ]
-    },
-    {
-      'id_pedido': 1002,
-      'total': 230000,
-      'estado': 'Aceptado',
-      'created_at': '2026-10-15 16:10',
-      'usuarios': {
-        'nombre': 'Carlos Ruiz',
-        'correo': 'carlos@gmail.com',
-      },
-      'detalle_pedidos': [
-        {'nombre': 'Best Protein', 'cantidad': 2, 'precio_unitario': 115000}
-      ]
-    },
-  ];
+  // Pedidos que vienen del servidor (GET /pedidos/admin)
+  List<PedidoModel> _pedidosGlobales = [];
+  bool _isLoading = true;
 
-  List<Map<String, dynamic>> get pedidosFiltrados {
+  @override
+  void initState() {
+    super.initState();
+    _cargarPedidos();
+  }
+
+  Future<void> _cargarPedidos() async {
+    if (mounted) setState(() => _isLoading = true);
+    try {
+      final pedidos = await PedidoService.obtenerTodosLosPedidos();
+      if (!mounted) return;
+      setState(() {
+        _pedidosGlobales = pedidos;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Error al cargar los pedidos: ${e.toString().replaceFirst('Exception: ', '')}',
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  List<PedidoModel> get pedidosFiltrados {
     if (estadoFiltro == 'Todos') return _pedidosGlobales;
-    return _pedidosGlobales.where((p) => p['estado'] == estadoFiltro).toList();
+    return _pedidosGlobales.where((p) => p.estado == estadoFiltro).toList();
   }
 
   Color _obtenerColorEstado(String estado) {
@@ -65,20 +71,50 @@ class _PedidosAdminScreenState extends State<PedidosAdminScreen> {
     }
   }
 
-  void _abrirModalCambiarEstado(Map<String, dynamic> pedido) {
-    String nuevoEstadoSeleccionado = pedido['estado'];
+  void _mostrarMensaje(String mensaje, {required bool exito}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: exito ? Colors.green : Colors.redAccent,
+      ),
+    );
+  }
+
+  Future<void> _guardarEstado(
+    PedidoModel pedido,
+    String nuevoEstado,
+    String motivo,
+  ) async {
+    final resultado = await PedidoService.cambiarEstado(
+      idPedido: pedido.idPedido,
+      estado: nuevoEstado,
+      motivo: nuevoEstado == 'Cancelado' ? motivo : null,
+    );
+    if (!mounted) return;
+
+    final exito = resultado['success'] == true;
+    _mostrarMensaje(
+      resultado['message']?.toString() ?? 'Operación finalizada',
+      exito: exito,
+    );
+    if (exito) await _cargarPedidos();
+  }
+
+  void _abrirModalCambiarEstado(PedidoModel pedido) {
+    String nuevoEstadoSeleccionado =
+        PedidoModel.estados.contains(pedido.estado) ? pedido.estado : 'Pendiente';
     final TextEditingController motivoController = TextEditingController();
 
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return StatefulBuilder(
-          builder: (context, setModalState) {
+          builder: (builderContext, setModalState) {
             return AlertDialog(
               backgroundColor: AppColors.grisOscuro,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: Text(
-                'ACTUALIZAR PEDIDO #${pedido['id_pedido']}',
+                'ACTUALIZAR PEDIDO #${pedido.idPedido}',
                 style: EstiloTexto.tekoSubtituloSeccion.copyWith(color: AppColors.verdePrimario, fontSize: 18),
               ),
               content: Column(
@@ -97,7 +133,7 @@ class _PedidosAdminScreenState extends State<PedidosAdminScreen> {
                       filled: true,
                       fillColor: Colors.black26,
                     ),
-                    items: ['Pendiente', 'Aceptado', 'Completado', 'Cancelado']
+                    items: PedidoModel.estados
                         .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                         .toList(),
                     onChanged: (val) {
@@ -126,22 +162,24 @@ class _PedidosAdminScreenState extends State<PedidosAdminScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(dialogContext),
                   child: const Text('CANCELAR', style: TextStyle(color: Colors.grey)),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.verdePrimario),
                   onPressed: () {
-                    setState(() {
-                      pedido['estado'] = nuevoEstadoSeleccionado;
-                    });
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Estado actualizado a $nuevoEstadoSeleccionado'),
-                        backgroundColor: Colors.black87,
-                      ),
-                    );
+                    final motivo = motivoController.text.trim();
+                    Navigator.pop(dialogContext);
+
+                    // El backend rechaza el cambio al mismo estado; se avisa sin llamar.
+                    if (nuevoEstadoSeleccionado == pedido.estado) {
+                      _mostrarMensaje(
+                        'El pedido ya está en estado $nuevoEstadoSeleccionado',
+                        exito: false,
+                      );
+                      return;
+                    }
+                    _guardarEstado(pedido, nuevoEstadoSeleccionado, motivo);
                   },
                   child: const Text('GUARDAR', style: TextStyle(color: AppColors.fondoNegro, fontWeight: FontWeight.bold)),
                 ),
@@ -151,12 +189,6 @@ class _PedidosAdminScreenState extends State<PedidosAdminScreen> {
         );
       },
     );
-  }
-
-  String _formatearPrecio(num valor) {
-    String precioStr = valor.toInt().toString();
-    RegExp reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
-    return '\$${precioStr.replaceAllMapped(reg, (Match m) => '${m[1]}.')}';
   }
 
   @override
@@ -220,95 +252,114 @@ class _PedidosAdminScreenState extends State<PedidosAdminScreen> {
               ),
               const SizedBox(height: 10),
 
-              // Lista de Pedidos Globales
+              // Lista de Pedidos Globales (desliza hacia abajo para refrescar)
               Expanded(
-                child: lista.isEmpty
+                child: _isLoading
                     ? const Center(
-                        child: Text('No hay pedidos registrados.', style: TextStyle(color: Colors.grey)),
+                        child: CircularProgressIndicator(color: AppColors.verdePrimario),
                       )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: lista.length,
-                        itemBuilder: (context, index) {
-                          final p = lista[index];
-                          final String estado = p['estado'];
-                          final Color colorEstado = _obtenerColorEstado(estado);
+                    : RefreshIndicator(
+                        color: AppColors.verdePrimario,
+                        onRefresh: _cargarPedidos,
+                        child: lista.isEmpty
+                            ? ListView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                children: const [
+                                  SizedBox(height: 120),
+                                  Center(
+                                    child: Text('No hay pedidos registrados.', style: TextStyle(color: Colors.grey)),
+                                  ),
+                                ],
+                              )
+                            : ListView.builder(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                padding: const EdgeInsets.all(16),
+                                itemCount: lista.length,
+                                itemBuilder: (context, index) {
+                                  final p = lista[index];
+                                  final String estado = p.estado;
+                                  final Color colorEstado = _obtenerColorEstado(estado);
+                                  final String nombre = p.nombreCliente.isEmpty ? 'Cliente' : p.nombreCliente;
+                                  final String cliente = p.correoCliente.isEmpty
+                                      ? nombre
+                                      : '$nombre (${p.correoCliente})';
 
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: AppColors.grisOscuro.withOpacity(0.85),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey.withOpacity(0.2)),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'PEDIDO #${p['id_pedido']}',
-                                      style: const TextStyle(
-                                        fontFamily: 'Teko',
-                                        color: Colors.white,
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.grisOscuro.withOpacity(0.85),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.grey.withOpacity(0.2)),
                                     ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: colorEstado.withOpacity(0.15),
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: colorEstado),
-                                      ),
-                                      child: Text(
-                                        estado,
-                                        style: TextStyle(color: colorEstado, fontSize: 11, fontWeight: FontWeight.bold),
-                                      ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              'PEDIDO #${p.idPedido}',
+                                              style: const TextStyle(
+                                                fontFamily: 'Teko',
+                                                color: Colors.white,
+                                                fontSize: 20,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: colorEstado.withOpacity(0.15),
+                                                borderRadius: BorderRadius.circular(8),
+                                                border: Border.all(color: colorEstado),
+                                              ),
+                                              child: Text(
+                                                estado,
+                                                style: TextStyle(color: colorEstado, fontSize: 11, fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Cliente: $cliente',
+                                          style: TextStyle(color: Colors.grey[300], fontSize: 13),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Fecha: ${p.fechaFormateada}',
+                                          style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                                        ),
+                                        const Divider(color: Colors.white12, height: 16),
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              'Total: ${Formato.precio(p.total)}',
+                                              style: const TextStyle(
+                                                fontFamily: 'Teko',
+                                                color: AppColors.verdePrimario,
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            OutlinedButton.icon(
+                                              style: OutlinedButton.styleFrom(
+                                                side: const BorderSide(color: AppColors.verdePrimario),
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                              ),
+                                              icon: const Icon(Icons.edit_note, color: AppColors.verdePrimario, size: 18),
+                                              label: const Text('CAMBIAR ESTADO', style: TextStyle(color: AppColors.verdePrimario, fontSize: 11)),
+                                              onPressed: () => _abrirModalCambiarEstado(p),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  'Cliente: ${p['usuarios']['nombre']} (${p['usuarios']['correo']})',
-                                  style: TextStyle(color: Colors.grey[300], fontSize: 13),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Fecha: ${p['created_at']}',
-                                  style: TextStyle(color: Colors.grey[500], fontSize: 11),
-                                ),
-                                const Divider(color: Colors.white12, height: 16),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Total: ${_formatearPrecio(p['total'])}',
-                                      style: const TextStyle(
-                                        fontFamily: 'Teko',
-                                        color: AppColors.verdePrimario,
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    OutlinedButton.icon(
-                                      style: OutlinedButton.styleFrom(
-                                        side: const BorderSide(color: AppColors.verdePrimario),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                      ),
-                                      icon: const Icon(Icons.edit_note, color: AppColors.verdePrimario, size: 18),
-                                      label: const Text('CAMBIAR ESTADO', style: TextStyle(color: AppColors.verdePrimario, fontSize: 11)),
-                                      onPressed: () => _abrirModalCambiarEstado(p),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+                                  );
+                                },
+                              ),
                       ),
               ),
             ],

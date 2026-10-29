@@ -9,9 +9,10 @@ class UserModel {
   final double? peso;
   final double? altura;
   final String password;
-  final String? confirmarContrasena; 
+  final String? confirmarContrasena;
   final String rol;
-
+  final bool isActive; // columna is_active (true = cuenta habilitada)
+  final String? fechaRegistro;
   UserModel({
     this.idUsuario,
     required this.nombre,
@@ -23,10 +24,11 @@ class UserModel {
     this.peso,
     this.altura,
     required this.password,
-    this.confirmarContrasena, 
+    this.confirmarContrasena,
     this.rol = 'cliente', // 👈 Actualizado a 'cliente' para coincidir con tu backend
+    this.isActive = true,
+    this.fechaRegistro,
   });
-
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
       idUsuario: json['id_usuario'] != null ? int.tryParse(json['id_usuario'].toString()) : null,
@@ -40,9 +42,29 @@ class UserModel {
       altura: json['altura'] != null ? double.tryParse(json['altura'].toString()) : null,
       password: '',
       rol: json['rol'] ?? 'cliente',
+      // Si la columna viene vacía (null) se considera activa, igual que el valor por defecto
+      isActive: json['is_active'] != false,
+      fechaRegistro: json['fecha_registro']?.toString(),
     );
   }
 
+  /// Mapa con las claves que ya usan TarjetaUsuarioAdmin y las pantallas de detalle
+  /// e historial (id, nombre, apellido, correo, cedula, rol, activo), así esas
+  /// pantallas no cambian.
+  Map<String, dynamic> toMapaAdmin() {
+    return {
+      'id': idUsuario,
+      'id_usuario': idUsuario,
+      'nombre': nombre,
+      'apellido': apellido,
+      'correo': correo,
+      'telefono': telefono,
+      'cedula': cedula ?? '',
+      'rol': rol,
+      'activo': isActive,
+      'fecha_registro': fechaRegistro,
+    };
+  }
   Map<String, dynamic> toJson() {
     return {
       'nombre': nombre,
@@ -54,7 +76,7 @@ class UserModel {
       'peso': peso,
       'altura': altura,
       'contraseña': password,
-      'confirmarContrasena': confirmarContrasena ?? password, 
+      'confirmarContrasena': confirmarContrasena ?? password,
       'rol': rol,
     };
   }
