@@ -1,5 +1,4 @@
 import { supabase } from "../config/supabase.js";
-
 // Proyeccion de campos en orden organizado
 const CAMPOS_ORDENADOS = `
     id_notificacion,
@@ -11,7 +10,6 @@ const CAMPOS_ORDENADOS = `
     leida,
     fecha
 `;
-
 // Obtiene las notificaciones del usuario (las personales y las globales para todos)
 export const obtenerNotificacionesUsuarioBD = async (id_usuario) => {
     const { data, error } = await supabase
@@ -19,10 +17,8 @@ export const obtenerNotificacionesUsuarioBD = async (id_usuario) => {
         .select(CAMPOS_ORDENADOS)
         .or(`id_usuario.eq.${id_usuario},id_usuario.is.null`)
         .order("fecha", { ascending: false });
-
     return { data, error };
 };
-
 // Crea una notificacion (puede ser para un usuario especifico o global si id_usuario es null)
 export const crearNotificacionBD = async (datosNotificacion) => {
     const payload = {
@@ -30,16 +26,13 @@ export const crearNotificacionBD = async (datosNotificacion) => {
         leida: false,
         fecha: new Date().toISOString()
     };
-
     const { data, error } = await supabase
         .from("notificaciones")
         .insert([payload])
         .select(CAMPOS_ORDENADOS)
         .single();
-
     return { data, error };
 };
-
 // Marca una notificacion especifica como leida
 export const marcarNotificacionLeidaBD = async (id_notificacion, id_usuario) => {
     const { data, error } = await supabase
@@ -49,10 +42,8 @@ export const marcarNotificacionLeidaBD = async (id_notificacion, id_usuario) => 
         .or(`id_usuario.eq.${id_usuario},id_usuario.is.null`)
         .select(CAMPOS_ORDENADOS)
         .single();
-
     return { data, error };
 };
-
 // Marca todas las notificaciones del usuario como leidas
 export const marcarTodasLeidasBD = async (id_usuario) => {
     const { data, error } = await supabase
@@ -60,10 +51,8 @@ export const marcarTodasLeidasBD = async (id_usuario) => {
         .update({ leida: true })
         .or(`id_usuario.eq.${id_usuario},id_usuario.is.null`)
         .select(CAMPOS_ORDENADOS);
-
     return { data, error };
 };
-
 // Elimina una notificacion por parte del usuario o administrador
 export const eliminarNotificacionBD = async (id_notificacion) => {
     const { data, error } = await supabase
@@ -72,6 +61,36 @@ export const eliminarNotificacionBD = async (id_notificacion) => {
         .eq("id_notificacion", Number(id_notificacion))
         .select(CAMPOS_ORDENADOS)
         .single();
-
     return { data, error };
+};
+
+// [ADMIN] Todas las notificaciones creadas (globales y personales), la más nueva primero.
+// El nombre del destinatario se busca aparte para no depender de una llave foránea.
+export const obtenerTodasNotificacionesBD = async () => {
+    const { data, error } = await supabase
+        .from("notificaciones")
+        .select(CAMPOS_ORDENADOS)
+        .order("fecha", { ascending: false });
+    if (error) return { data: null, error };
+
+    const ids = [...new Set((data || []).map((n) => n.id_usuario).filter((id) => id !== null))];
+    let nombres = new Map();
+
+    if (ids.length > 0) {
+        const { data: usuarios, error: errorUsuarios } = await supabase
+            .from("usuarios")
+            .select("id_usuario, nombre")
+            .in("id_usuario", ids);
+        if (errorUsuarios) {
+            console.error("No se pudieron leer los nombres de los destinatarios:", errorUsuarios.message);
+        } else {
+            nombres = new Map((usuarios || []).map((u) => [u.id_usuario, u.nombre]));
+        }
+    }
+
+    const conDestinatario = (data || []).map((n) => ({
+        ...n,
+        destinatario_nombre: n.id_usuario === null ? null : (nombres.get(n.id_usuario) ?? null)
+    }));
+    return { data: conDestinatario, error: null };
 };

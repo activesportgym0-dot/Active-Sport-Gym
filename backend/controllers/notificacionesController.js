@@ -3,16 +3,15 @@ import {
     crearNotificacionBD,
     marcarNotificacionLeidaBD,
     marcarTodasLeidasBD,
-    eliminarNotificacionBD
+    eliminarNotificacionBD,
+    obtenerTodasNotificacionesBD
 } from "../models/notificacionesModel.js";
-
 // Extrae y valida el ID del usuario desde el token decodificado
 const obtenerIdUsuario = (req) => {
     const raw = req.usuario?.id_usuario || req.usuario?.id;
     const id = Number(raw);
     return Number.isInteger(id) ? id : null;
 };
-
 // Retorna todas las notificaciones pertenecientes al usuario autenticado
 export const consultarMisNotificaciones = async (req, res) => {
     try {
@@ -43,7 +42,7 @@ export const crearNotificacion = async (req, res) => {
         const id_usuario = body.id_usuario;
         const titulo = body.titulo || body.título;
         const mensaje = body.mensaje;
-        const tipo = body.tipo;       
+        const tipo = body.tipo;      
         if (!titulo || typeof titulo !== "string" || titulo.trim() === "") {
             return res.status(400).json({ error: "El título es obligatorio y debe ser un texto válido." });
         }
@@ -151,5 +150,19 @@ export const borrarNotificacion = async (req, res) => {
     } catch (error) {
         console.error("Error en borrarNotificacion:", error);
         return res.status(500).json({ error: "Ocurrió un error interno al eliminar la notificación" });
+    }
+};
+
+// [ADMIN] Lista todas las notificaciones enviadas (para la pantalla de gestión)
+export const listarNotificacionesAdmin = async (req, res) => {
+    try {
+        const { data, error } = await obtenerTodasNotificacionesBD();
+        if (error) {
+            return res.status(500).json({ error: "Error al obtener las notificaciones", detalle: error.message });
+        }
+        return res.status(200).json(data || []);
+    } catch (error) {
+        console.error("Error en listarNotificacionesAdmin:", error);
+        return res.status(500).json({ error: "Ocurrió un error interno al listar las notificaciones" });
     }
 };

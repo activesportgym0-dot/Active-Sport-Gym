@@ -4,6 +4,7 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 
+
 import { conectaDB } from "./config/supabase.js";
 
 import usuarioRouter from "./routes/usuarioRouter.js";
@@ -38,6 +39,8 @@ import reglasHorariosRouter from "./routes/reglasHorariosRoutes.js";
 
 import chatearConGym from "./routes/chatRoutes.js";
 
+import dashboardRouter from "./routes/dashboardRouter.js";
+
 // CONFIGURACIÓN DE VARIABLES DE ENTORNO
 dotenv.config();
 
@@ -51,6 +54,7 @@ app.use(express.json());
 
 // Permite la comunicación entre frontend y backend
 app.use(cors());
+
 
 // CONEXIÓN CON LA BASE DE DATOS
 conectaDB();
@@ -105,6 +109,10 @@ app.use("/reglas-horarios", reglasHorariosRouter);
 // Rutas de chat
 app.use("/chat", chatearConGym);
 
+//Ruta de resumen
+app.use("/dashboard", dashboardRouter);
+
+
 // RUTA PRINCIPAL
 app.get("/", (req, res) => {
   res.json({
@@ -112,6 +120,12 @@ app.get("/", (req, res) => {
     estado: "En linea",
     Version: "1.0.0"
   });
+  
+  
+});
+//Montando las rutas de la API
+app.get('/health',(req, res) => {
+res.status(200).send('OK');
 });
 
 // CONFIGURACIÓN DEL PUERTO

@@ -2,15 +2,14 @@ import {
     obtenerMembresiaActualBD,
     obtenerHistorialMembresiasBD,
     registrarMembresiaBD,
-    cambiarEstadoMembresiaBD
+    cambiarEstadoMembresiaBD,
+    obtenerClientesConMembresiaBD
 } from "../models/membresiaModel.js";
-
 const obtenerIdUsuario = (req) => {
     const raw = req.usuario?.id_usuario || req.usuario?.id;
     const id = Number(raw);
     return Number.isInteger(id) ? id : null;
 };
-
 // [CLIENTE] Consulta únicamente el estado de su membresía actual/última
 export const consultarMiMembresia = async (req, res) => {
     try {
@@ -34,7 +33,6 @@ export const consultarMiMembresia = async (req, res) => {
         return res.status(500).json({ error: "Ocurrió un error interno al consultar tu membresía" });
     }
 };
-
 // [CLIENTE / ADMIN] Consulta todo el historial de membresías compradas por el cliente
 export const consultarHistorialMembresias = async (req, res) => {
     try {
@@ -54,7 +52,6 @@ export const consultarHistorialMembresias = async (req, res) => {
         return res.status(500).json({ error: "Ocurrió un error interno al obtener el historial" });
     }
 };
-
 // [ADMIN] Registra un nuevo pago / renovación de membresía
 export const asignarMembresia = async (req, res) => {
     try {
@@ -95,7 +92,6 @@ export const asignarMembresia = async (req, res) => {
         return res.status(500).json({ error: "Ocurrió un error interno al registrar la membresía" });
     }
 };
-
 // [ADMIN] Cambia el estado de un registro de membresía específico por su id_membresia
 export const cambiarEstadoMembresia = async (req, res) => {
     try {
@@ -122,5 +118,19 @@ export const cambiarEstadoMembresia = async (req, res) => {
     } catch (error) {
         console.error("Error en cambiarEstadoMembresia:", error);
         return res.status(500).json({ error: "Ocurrió un error interno al actualizar el estado" });
+    }
+};
+
+// [ADMIN] Lista todos los clientes con el estado de su membresía más reciente
+export const listarMembresiasAdmin = async (req, res) => {
+    try {
+        const { data, error } = await obtenerClientesConMembresiaBD();
+        if (error) {
+            return res.status(500).json({ error: "Error al consultar las membresías", detalle: error.message });
+        }
+        return res.status(200).json(data || []);
+    } catch (error) {
+        console.error("Error en listarMembresiasAdmin:", error);
+        return res.status(500).json({ error: "Ocurrió un error interno al listar las membresías" });
     }
 };
