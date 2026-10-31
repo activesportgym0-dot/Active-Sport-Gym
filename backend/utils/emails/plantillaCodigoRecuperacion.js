@@ -1,5 +1,5 @@
 import { BrevoClient } from '@getbrevo/brevo';
-import { obtenerAdjuntoLogo } from "../../config/mailer.js";
+import { obtenerLogoEmailUrl } from "../../config/mailer.js";
 
 export const enviarCorreoRecuperacion = async (correoDestino, nombreUsuario, codigo) => {
   try {
@@ -7,8 +7,7 @@ export const enviarCorreoRecuperacion = async (correoDestino, nombreUsuario, cod
       apiKey: process.env.BREVO_API_KEY
     });
 
-    const adjuntos = obtenerAdjuntoLogo();
-    const tieneLogo = adjuntos.length > 0;
+    const logoUrl = await obtenerLogoEmailUrl();
 
     const html = `
       <!DOCTYPE html>
@@ -19,13 +18,22 @@ export const enviarCorreoRecuperacion = async (correoDestino, nombreUsuario, cod
         <style>
           body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0b0f17; margin: 0; padding: 40px 10px; }
           .wrapper { max-width: 480px; margin: 0 auto; background: #121824; border-radius: 20px; overflow: hidden; border: 1px solid #1f293d; box-shadow: 0 20px 40px rgba(0,0,0,0.6); }
+          
+          /* ENCABEZADO Y CONTENEDOR DEL LOGO */
           .header { background: linear-gradient(180deg, #000000 0%, #121212 100%); padding: 30px 20px; text-align: center; border-bottom: 3px solid #22c55e; }
+          .logo-container { width: 100%; text-align: center; margin: 0 auto; }
+          .logo { max-width: 140px; height: auto; width: 100%; display: inline-block; filter: drop-shadow(0 0 10px rgba(34,197,94,0.3)); }
+          
           .content { padding: 40px 30px; text-align: center; color: #f8fafc; }
+          
           .badge-security { display: inline-block; background-color: rgba(34, 197, 94, 0.12); border: 1px solid #22c55e; color: #4ade80; font-size: 11px; font-weight: 800; padding: 6px 14px; border-radius: 50px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 15px; }
+          
           .title { font-size: 22px; font-weight: 900; color: #ffffff; margin: 0 0 10px 0; letter-spacing: -0.5px; }
           .subtitle { font-size: 14px; color: #94a3b8; margin: 0 0 25px 0; line-height: 1.6; }
+          
           .code-box { background: linear-gradient(145deg, #1a2332 0%, #0d131f 100%); border: 2px dashed #22c55e; border-radius: 14px; padding: 20px 25px; margin: 25px 0; display: inline-block; box-shadow: 0 0 20px rgba(34, 197, 94, 0.15); }
           .code-text { font-size: 36px; font-weight: 900; letter-spacing: 10px; color: #22c55e; font-family: 'Courier New', Courier, monospace; text-shadow: 0 0 12px rgba(34, 197, 94, 0.5); }
+          
           .footer-note { font-size: 12px; color: #64748b; margin-top: 25px; line-height: 1.5; }
           .footer { text-align: center; padding: 20px; font-size: 12px; color: #64748b; background-color: #0d121d; border-top: 1px solid #1f293d; }
         </style>
@@ -33,7 +41,9 @@ export const enviarCorreoRecuperacion = async (correoDestino, nombreUsuario, cod
       <body>
         <div class="wrapper">
           <div class="header">
-            ${tieneLogo ? '<img src="cid:logoActiveGym" alt="Active Sport Gym" width="140" style="display: block; margin: 0 auto; border: 0; outline: none; text-decoration: none; width: 140px; height: auto;" />' : ''}
+            <div class="logo-container">
+              ${logoUrl ? `<img src="${logoUrl}" alt="Active Sport Gym" class="logo" />` : ""}
+            </div>
           </div>
 
           <div class="content">
@@ -71,10 +81,6 @@ export const enviarCorreoRecuperacion = async (correoDestino, nombreUsuario, cod
       subject: `${codigo} es tu código de verificación - Active Sport Gym`,
       htmlContent: html
     };
-
-    if (Array.isArray(adjuntos) && adjuntos.length > 0 && adjuntos[0].content) {
-      payload.attachment = adjuntos;
-    }
 
     const resultado = await brevo.transactionalEmails.sendTransacEmail(payload);
     return { exito: true, resultado };

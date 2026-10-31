@@ -1,5 +1,5 @@
 import { BrevoClient } from '@getbrevo/brevo';
-import { obtenerAdjuntoLogo } from "../../config/mailer.js";
+import { obtenerLogoEmailUrl } from "../../config/mailer.js";
 
 export const enviarCodigoVerificacion = async (correoDestino, nombreDestino, codigo) => {
   try {
@@ -7,7 +7,7 @@ export const enviarCodigoVerificacion = async (correoDestino, nombreDestino, cod
       apiKey: process.env.BREVO_API_KEY
     });
 
-    const adjuntos = obtenerAdjuntoLogo();
+    const logoUrl = await obtenerLogoEmailUrl();
 
     // Estructura de envío de correo
     const payload = {
@@ -40,7 +40,7 @@ export const enviarCodigoVerificacion = async (correoDestino, nombreDestino, cod
         <body>
           <div class="wrapper">
             <div class="header">
-              <h2 style="color: #22c55e; margin: 0;">ACTIVE SPORT GYM</h2>
+              ${logoUrl ? `<img src="${logoUrl}" alt="Active Sport Gym" style="max-width:140px;width:100%;height:auto;display:block;margin:0 auto;" />` : '<h2 style="color: #22c55e; margin: 0;">ACTIVE SPORT GYM</h2>'}
             </div>
             <div class="content">
               <h1>Verifica tu Correo</h1>
@@ -57,9 +57,6 @@ export const enviarCodigoVerificacion = async (correoDestino, nombreDestino, cod
     };
 
     // Solo agregar attachments si contiene elementos válidos con url o content
-    if (Array.isArray(adjuntos) && adjuntos.length > 0 && (adjuntos[0].url || adjuntos[0].content)) {
-      payload.attachment = adjuntos;
-    }
 
     const resultado = await brevo.transactionalEmails.sendTransacEmail(payload);
 

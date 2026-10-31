@@ -1,5 +1,5 @@
 import { BrevoClient } from '@getbrevo/brevo';
-import { obtenerAdjuntoLogo } from "../../config/mailer.js";
+import { obtenerLogoEmailUrl } from "../../config/mailer.js";
 
 /**
  * Plantilla para notificar al Administrador cuando un producto se está agotando.
@@ -10,8 +10,7 @@ export const enviarAlertaStockBajo = async ({ producto, stockActual, limiteMinim
       apiKey: process.env.BREVO_API_KEY
     });
 
-    const adjuntos = obtenerAdjuntoLogo();
-    const tieneLogo = adjuntos.length > 0;
+    const logoUrl = await obtenerLogoEmailUrl();
 
     const html = `
       <!DOCTYPE html>
@@ -47,7 +46,7 @@ export const enviarAlertaStockBajo = async ({ producto, stockActual, limiteMinim
       <body>
         <div class="wrapper">
           <div class="header">
-            ${tieneLogo ? '<img src="cid:logoActiveGym" alt="Active Sport Gym" class="logo" />' : ''}
+            ${logoUrl ? `<img src="${logoUrl}" alt="Active Sport Gym" class="logo" />` : ""}
           </div>
           
           <div class="content">
@@ -108,10 +107,6 @@ export const enviarAlertaStockBajo = async ({ producto, stockActual, limiteMinim
       subject: `⚠️ ALERTA: Stock Bajo en ${producto.nombre}`,
       htmlContent: html
     };
-
-    if (Array.isArray(adjuntos) && adjuntos.length > 0 && adjuntos[0].content) {
-      payload.attachment = adjuntos;
-    }
 
     const resultado = await brevo.transactionalEmails.sendTransacEmail(payload);
     console.log('Alerta de stock enviada con éxito');
