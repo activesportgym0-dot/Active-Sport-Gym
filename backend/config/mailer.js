@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-// Helper para leer el logo y adaptarlo correctamente para Brevo (inline)
+// Helper optimizado para adjuntos inline en Brevo
 export const obtenerAdjuntoLogo = () => {
   try {
     const rutaLogo = path.resolve("./assets/images/logo.png");
@@ -11,9 +11,7 @@ export const obtenerAdjuntoLogo = () => {
         {
           content: archivoBuffer.toString("base64"),
           name: "logo.png",
-          // 👈 Estas propiedades son vitales para que Brevo lo incruste en el HTML
-          inline: true,
-          contentId: "logoActiveGym" 
+          cid: "logoActiveGym" // 👈 Brevo usa la propiedad cid estándar junto con el nombre del archivo
         }
       ];
     }
