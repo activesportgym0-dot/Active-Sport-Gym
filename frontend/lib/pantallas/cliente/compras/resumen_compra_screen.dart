@@ -3,31 +3,57 @@ import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
 import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
-
-class ResumenCompraScreen extends StatelessWidget {
+import 'package:url_launcher/url_launcher.dart';
+import 'package:frontend/models/pedido_model.dart';
+import 'package:frontend/services/pedido_service.dart';
+class ResumenCompraScreen extends StatefulWidget {
   final List<Map<String, dynamic>> items;
   final double totalPagar;
-
   const ResumenCompraScreen({
     super.key,
     required this.items,
     required this.totalPagar,
   });
-
+  @override
+  State<ResumenCompraScreen> createState() => _ResumenCompraScreenState();
+}
+class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
+  bool _procesando = false; // evita confirmar el pedido dos veces
   String _formatearPrecio(num valor) {
     String precioStr = valor.toInt().toString();
     RegExp reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
     return '\$${precioStr.replaceAllMapped(reg, (Match m) => '${m[1]}.')}';
   }
+  // Confirma el pedido en el backend (POST /pedidos/confirmar): el servidor toma el
+  // carrito del cliente, descuenta el stock, lo vacía y devuelve el enlace de WhatsApp.
+  Future<void> _procesarPedido() async {
+    if (_procesando) return;
+    setState(() => _procesando = true);
 
-  void _procesarPedido(BuildContext context) {
-    // Simulación de respuesta exitosa del backend (confirmarPedido -> url_whatsapp)
-    int idPedidoFicticio = 1050;
+    final resultado = await PedidoService.confirmarPedido();
+    if (!mounted) return;
+    setState(() => _procesando = false);
+
+    if (resultado['success'] != true) {
+      // Por ejemplo: "Sin stock suficiente para ...", "El carrito está vacío."
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(resultado['message'].toString()),
+          backgroundColor: Colors.redAccent,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
+    final PedidoModel? pedido = resultado['pedido'] as PedidoModel?;
+    final String? urlWhatsapp = resultado['url_whatsapp'] as String?;
+    final num totalConfirmado = pedido?.total ?? widget.totalPagar;
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.grisOscuro,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
@@ -42,12 +68,12 @@ class ResumenCompraScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Tu pedido #$idPedidoFicticio ha sido registrado exitosamente en estado "Pendiente".',
+              'Tu pedido ${pedido != null ? '#${pedido.idPedido} ' : ''}ha sido registrado exitosamente en estado "Pendiente".',
               style: const TextStyle(color: Colors.white, fontSize: 13),
             ),
             const SizedBox(height: 10),
             Text(
-              'Total: ${_formatearPrecio(totalPagar)}',
+              'Total: ${_formatearPrecio(totalConfirmado)}',
               style: const TextStyle(
                 color: AppColors.verdePrimario,
                 fontWeight: FontWeight.bold,
@@ -66,9 +92,12 @@ class ResumenCompraScreen extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.verdePrimario,
             ),
-            onPressed: () {
-              Navigator.pop(context); // Cierra modal
-              Navigator.pop(context, true); // Regresa al carrito notificando éxito para vaciarlo
+            onPressed: () async {
+              Navigator.pop(dialogContext); // Cierra el modal
+              await _abrirWhatsApp(urlWhatsapp);
+              if (mounted) {
+                Navigator.pop(context, true); // Regresa al carrito notificando éxito
+              }
             },
             child: const Text(
               'IR A WHATSAPP',
@@ -79,6 +108,27 @@ class ResumenCompraScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // Abre el enlace wa.me que devolvió el backend. El pedido ya quedó registrado,
+  // así que si WhatsApp no se puede abrir solo se avisa.
+  Future<void> _abrirWhatsApp(String? url) async {
+    if (url == null || url.isEmpty) return;
+    try {
+      final abierto = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      if (!abierto && mounted) _avisarSinWhatsApp();
+    } catch (_) {
+      if (mounted) _avisarSinWhatsApp();
+    }
+  }
+
+  void _avisarSinWhatsApp() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('No se pudo abrir WhatsApp. Tu pedido ya quedó registrado.'),
+        backgroundColor: Colors.orange,
       ),
     );
   }
@@ -113,7 +163,6 @@ class ResumenCompraScreen extends StatelessWidget {
                       style: EstiloTexto.tekoSubtituloSeccion.copyWith(fontSize: 16),
                     ),
                     const SizedBox(height: 10),
-
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -122,11 +171,10 @@ class ResumenCompraScreen extends StatelessWidget {
                         border: Border.all(color: Colors.grey.withOpacity(0.2)),
                       ),
                       child: Column(
-                        children: items.map((item) {
+                        children: widget.items.map((item) {
                           final num precio = item['precio'] ?? 0;
                           final int cantidad = item['cantidad'] ?? 1;
                           final num subtotal = precio * cantidad;
-
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 6),
                             child: Row(
@@ -157,14 +205,12 @@ class ResumenCompraScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 20),
-
                     // 2. Sección: Método de Entrega
                     Text(
                       'MÉTODO DE CONFIRMACIÓN Y ENTREGA',
                       style: EstiloTexto.tekoSubtituloSeccion.copyWith(fontSize: 16),
                     ),
                     const SizedBox(height: 10),
-
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
@@ -198,7 +244,6 @@ class ResumenCompraScreen extends StatelessWidget {
                   ],
                 ),
               ),
-
               // 3. Tarjeta Inferior de Pago
               Container(
                 padding: const EdgeInsets.all(16),
@@ -221,7 +266,7 @@ class ResumenCompraScreen extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          _formatearPrecio(totalPagar),
+                          _formatearPrecio(widget.totalPagar),
                           style: const TextStyle(
                             fontFamily: 'Teko',
                             color: AppColors.verdePrimario,
@@ -242,15 +287,24 @@ class ResumenCompraScreen extends StatelessWidget {
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        onPressed: () => _procesarPedido(context),
-                        child: const Text(
-                          'FINALIZAR COMPRA',
-                          style: TextStyle(
-                            color: AppColors.fondoNegro,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
+                        onPressed: _procesando ? null : _procesarPedido,
+                        child: _procesando
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  color: AppColors.fondoNegro,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                'FINALIZAR COMPRA',
+                                style: TextStyle(
+                                  color: AppColors.fondoNegro,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
                       ),
                     ),
                   ],

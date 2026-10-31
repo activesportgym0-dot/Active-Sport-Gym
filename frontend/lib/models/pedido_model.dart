@@ -61,6 +61,9 @@ class PedidoModel {
     this.detalles = const [],
   });
 
+  /// El backend solo deja cancelar al cliente un pedido en estado Pendiente.
+  bool get puedeCancelarse => estado == 'Pendiente';
+
   /// "2026-10-16T13:30:00+00:00" -> "16/10/2026 08:30" (hora local del teléfono).
   String get fechaFormateada {
     final fecha = DateTime.tryParse(fechaPedido)?.toLocal();

@@ -4,6 +4,11 @@ import '../models/pedido_model.dart';
 import 'api_config.dart';
 import 'auth_service.dart';
 
+/// SERVICIO ÚNICO DE PEDIDOS. Lo usan las dos partes de la app, para no crear
+/// servicios separados por rol:
+///  - ADMINISTRADOR: ver todos los pedidos y cambiar su estado.
+///  - CLIENTE: confirmar el pedido desde el carrito, ver su historial
+///    (obtenerMisPedidos) y cancelar un pedido propio en estado Pendiente.
 class PedidoService {
   static const String _rutaPedidos = '/pedidos';
 
@@ -78,6 +83,92 @@ class PedidoService {
       return {
         'success': false,
         'message': _mensajeError(response, 'No se pudo actualizar el estado'),
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  // CLIENTE
+
+  /// POST /pedidos/confirmar -> convierte el carrito del cliente en un pedido.
+  /// Devuelve {success, message, pedido: PedidoModel?, url_whatsapp: String?}.
+  /// El backend descuenta el stock, vacía el carrito y envía los correos.
+  static Future<Map<String, dynamic>> confirmarPedido() async {
+    if (!_haySesion) return {'success': false, 'message': _sinSesion};
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}$_rutaPedidos/confirmar'),
+        headers: _headersJson,
+      );
+      final data = _decodificarRespuesta(response.body);
+
+      if (response.statusCode == 201) {
+        final pedido = data['pedido'];
+        return {
+          'success': true,
+          'message': data['mensaje'] ?? 'Pedido realizado correctamente',
+          'pedido': pedido is Map
+              ? PedidoModel.fromJson(Map<String, dynamic>.from(pedido))
+              : null,
+          'url_whatsapp': data['url_whatsapp']?.toString(),
+        };
+      }
+      return {
+        'success': false,
+        'message': _mensajeError(response, 'No se pudo confirmar el pedido'),
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  /// GET /pedidos/mis-pedidos -> historial del cliente con el detalle de cada pedido.
+  /// Lanza una excepción con el motivo real si el servidor responde con error.
+  static Future<List<PedidoModel>> obtenerMisPedidos() async {
+    if (!_haySesion) throw Exception(_sinSesion);
+
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}$_rutaPedidos/mis-pedidos'),
+      headers: _headersJson,
+    );
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! List) return [];
+      return decoded
+          .whereType<Map>()
+          .map((p) => PedidoModel.fromJson(Map<String, dynamic>.from(p)))
+          .toList();
+    }
+
+    throw Exception(
+      _mensajeError(response, 'No se pudo cargar tu historial de pedidos'),
+    );
+  }
+
+  /// PUT /pedidos/mis-pedidos/:id/cancelar -> solo si el pedido es del cliente
+  /// y está Pendiente. El backend devuelve las unidades al stock.
+  static Future<Map<String, dynamic>> cancelarMiPedido(int idPedido) async {
+    if (!_haySesion) return {'success': false, 'message': _sinSesion};
+
+    try {
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}$_rutaPedidos/mis-pedidos/$idPedido/cancelar'),
+        headers: _headersJson,
+      );
+      final data = _decodificarRespuesta(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': data['mensaje'] ?? 'Pedido cancelado correctamente.',
+        };
+      }
+      return {
+        'success': false,
+        'message': _mensajeError(response, 'No se pudo cancelar el pedido'),
       };
     } catch (e) {
       return {'success': false, 'message': 'Error de conexión: $e'};

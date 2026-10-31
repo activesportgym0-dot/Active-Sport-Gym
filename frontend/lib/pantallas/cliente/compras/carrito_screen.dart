@@ -5,39 +5,51 @@ import 'package:frontend/componentes/fondo.dart';
 import 'package:frontend/pantallas/cliente/compras/mis_pedidos_cliente_screen.dart';
 import 'package:frontend/pantallas/cliente/compras/resumen_compra_screen.dart';
 import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
-
+import 'package:frontend/services/carrito_service.dart';
 class CarritoScreen extends StatefulWidget {
-  final List<Map<String, dynamic>>? itemsIniciales;
-
-  const CarritoScreen({
-    super.key,
-    this.itemsIniciales,
-  });
-
+  const CarritoScreen({super.key});
   @override
   State<CarritoScreen> createState() => _CarritoScreenState();
 }
-
 class _CarritoScreenState extends State<CarritoScreen> {
   // Estructura sincronizada con el controlador: id_carrito, id_producto, nombre, precio, imagen_url, cantidad, stock_disponible, subtotal
-  late List<Map<String, dynamic>> _itemsCarrito;
+  // Los datos reales llegan de GET /carrito
+  List<Map<String, dynamic>> _itemsCarrito = [];
+  bool _isLoading = true;
+  bool _actualizando = false; // evita taps repetidos mientras el servidor responde
 
   @override
   void initState() {
     super.initState();
-    _itemsCarrito = widget.itemsIniciales ??
-        [
-          {
-            'id_carrito': 1,
-            'id_producto': 101,
-            'nombre': 'Army BCAA',
-            'precio': 115000,
-            'imagen_url': 'assets/images/3.jpg',
-            'cantidad': 1,
-            'stock_disponible': 10,
-            'subtotal': 115000,
-          },
-        ];
+    _cargarCarrito();
+  }
+
+  void _mostrarMensaje(String mensaje, {required bool exito}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: exito ? Colors.green : Colors.redAccent,
+      ),
+    );
+  }
+
+  Future<void> _cargarCarrito() async {
+    if (mounted) setState(() => _isLoading = true);
+    try {
+      final carrito = await CarritoService.obtenerCarrito();
+      if (!mounted) return;
+      setState(() {
+        _itemsCarrito = carrito.items.map((i) => i.toMapaPantalla()).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _mostrarMensaje(
+        'Error al cargar el carrito: ${e.toString().replaceFirst('Exception: ', '')}',
+        exito: false,
+      );
+    }
   }
 
   // Recalcular el total general tal cual lo entrega el endpoint verCarrito (total_pagar)
@@ -50,6 +62,27 @@ class _CarritoScreenState extends State<CarritoScreen> {
     }
     return total;
   }
+  // Fija la cantidad en el servidor (PUT /carrito/item/:id) y, si lo acepta, en pantalla
+  Future<void> _cambiarCantidad(int index, int nuevaCantidad) async {
+    if (_actualizando) return;
+    setState(() => _actualizando = true);
+
+    final resultado = await CarritoService.cambiarCantidad(
+      idCarrito: _itemsCarrito[index]['id_carrito'] as int,
+      cantidad: nuevaCantidad,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _actualizando = false;
+      if (resultado['success'] == true) {
+        _itemsCarrito[index]['cantidad'] = nuevaCantidad;
+      }
+    });
+    if (resultado['success'] != true) {
+      _mostrarMensaje(resultado['message'].toString(), exito: false);
+    }
+  }
 
   void _incrementarCantidad(int index) {
     final item = _itemsCarrito[index];
@@ -57,9 +90,7 @@ class _CarritoScreenState extends State<CarritoScreen> {
     int cantidadActual = item['cantidad'] as int;
 
     if (cantidadActual < stock) {
-      setState(() {
-        _itemsCarrito[index]['cantidad'] = cantidadActual + 1;
-      });
+      _cambiarCantidad(index, cantidadActual + 1);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -73,16 +104,29 @@ class _CarritoScreenState extends State<CarritoScreen> {
   void _decrementarCantidad(int index) {
     int cantidadActual = _itemsCarrito[index]['cantidad'] as int;
     if (cantidadActual > 1) {
-      setState(() {
-        _itemsCarrito[index]['cantidad'] = cantidadActual - 1;
-      });
+      _cambiarCantidad(index, cantidadActual - 1);
     }
   }
 
-  void _eliminarItem(int index) {
+  // DELETE /carrito/item/:id
+  Future<void> _eliminarItem(int index) async {
+    if (_actualizando) return;
+    setState(() => _actualizando = true);
+
+    final resultado = await CarritoService.eliminarItem(
+      _itemsCarrito[index]['id_carrito'] as int,
+    );
+    if (!mounted) return;
+
     setState(() {
-      _itemsCarrito.removeAt(index);
+      _actualizando = false;
+      if (resultado['success'] == true) {
+        _itemsCarrito.removeAt(index);
+      }
     });
+    if (resultado['success'] != true) {
+      _mostrarMensaje(resultado['message'].toString(), exito: false);
+    }
   }
 
   String _formatearPrecio(num valor) {
@@ -90,7 +134,6 @@ class _CarritoScreenState extends State<CarritoScreen> {
     RegExp reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
     return '\$${precioStr.replaceAllMapped(reg, (Match m) => '${m[1]}.')}';
   }
-
   Widget _construirImagen(dynamic rutaImagen) {
     if (rutaImagen == null || rutaImagen.toString().isEmpty) {
       return const Icon(Icons.shopping_bag, color: Colors.white54, size: 40);
@@ -102,7 +145,6 @@ class _CarritoScreenState extends State<CarritoScreen> {
       return Image.network(pathStr, fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.shopping_bag, color: Colors.white54, size: 40));
     }
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -141,7 +183,11 @@ class _CarritoScreenState extends State<CarritoScreen> {
             children: [
               // 1. Listado de Productos
               Expanded(
-                child: _itemsCarrito.isEmpty
+                child: _isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(color: AppColors.verdePrimario),
+                      )
+                    : _itemsCarrito.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -164,7 +210,6 @@ class _CarritoScreenState extends State<CarritoScreen> {
                           final int cant = item['cantidad'] ?? 1;
                           final num subtotal = precioUnitario * cant;
                           final int stock = item['stock_disponible'] ?? 0;
-
                           return Container(
                             margin: const EdgeInsets.only(bottom: 12),
                             padding: const EdgeInsets.all(12),
@@ -189,7 +234,6 @@ class _CarritoScreenState extends State<CarritoScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 12),
-
                                 // Info del Producto
                                 Expanded(
                                   child: Column(
@@ -225,7 +269,6 @@ class _CarritoScreenState extends State<CarritoScreen> {
                                     ],
                                   ),
                                 ),
-
                                 // Controles (+ / - y Eliminar)
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -237,7 +280,6 @@ class _CarritoScreenState extends State<CarritoScreen> {
                                       onPressed: () => _eliminarItem(index),
                                     ),
                                     const SizedBox(height: 10),
-
                                     Container(
                                       decoration: BoxDecoration(
                                         border: Border.all(color: AppColors.verdePrimario.withOpacity(0.5)),
@@ -279,7 +321,6 @@ class _CarritoScreenState extends State<CarritoScreen> {
                         },
                       ),
               ),
-
               // 2. Tarjeta de Resumen y Confirmación
               if (_itemsCarrito.isNotEmpty)
                 Container(
@@ -355,12 +396,9 @@ class _CarritoScreenState extends State<CarritoScreen> {
                                 ),
                               ),
                             );
-
-                            // Si se completó el pedido, vaciamos el carrito local
+                            // Si se completó el pedido, el backend ya vació el carrito: se recarga
                             if (compraExitoso == true) {
-                              setState(() {
-                                _itemsCarrito.clear();
-                              });
+                              _cargarCarrito();
                             }
                           },
                           child: const Text(

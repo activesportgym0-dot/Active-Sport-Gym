@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ApiConfig {
   // Déjalo en false para usar tu servidor local en la computadora
-  static const bool useRemote = false;
+  static const bool useRemote = true;
   
   // URL de tu backend desplegado en Render
   static const String _remoteUrl = 'https://active-sport-gym.onrender.com';

@@ -5,7 +5,9 @@ import 'api_config.dart';
 import 'auth_service.dart';
 
 class EjercicioService {
-  // GESTIÓN DE EJERCICIOS
+  // ==========================================
+  // GESTIÓN DE EJERCICIOS (ADMINISTRADOR)
+  // ==========================================
 
   static Future<List<dynamic>> obtenerEjercicios() async {
     try {
@@ -16,7 +18,6 @@ class EjercicioService {
           'Authorization': 'Bearer ${SessionService.token}',
         },
       );
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['ejercicios'] ?? [];
@@ -44,11 +45,9 @@ class EjercicioService {
     try {
       final uri = Uri.parse('${ApiConfig.baseUrl}/ejercicios');
       final request = http.MultipartRequest('POST', uri);
-
       request.headers.addAll({
         'Authorization': 'Bearer ${SessionService.token}',
       });
-
       request.fields['nombre'] = nombre;
       request.fields['maquina'] = maquina;
       request.fields['descripcion'] = descripcion;
@@ -58,7 +57,6 @@ class EjercicioService {
       request.fields['respiracion'] = respiracion;
       request.fields['ritmo_movimiento'] = ritmoMovimiento;
       request.fields['categorias'] = jsonEncode(categoriasIds);
-
       request.files.add(
         http.MultipartFile.fromBytes(
           'imagen',
@@ -66,7 +64,6 @@ class EjercicioService {
           filename: _nombreArchivo(imagenFile, 'imagen.jpg'),
         ),
       );
-
       if (gifFile != null) {
         request.files.add(
           http.MultipartFile.fromBytes(
@@ -76,11 +73,9 @@ class EjercicioService {
           ),
         );
       }
-
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
       final data = _decodificarRespuesta(response.body);
-
       if (response.statusCode == 201) {
         return {
           'success': true,
@@ -88,7 +83,6 @@ class EjercicioService {
           'data': data['ejercicio'],
         };
       }
-
       return {
         'success': false,
         'message': data['mensaje'] ?? 'Error al registrar el ejercicio',
@@ -115,11 +109,9 @@ class EjercicioService {
     try {
       final uri = Uri.parse('${ApiConfig.baseUrl}/ejercicios/$idEjercicio');
       final request = http.MultipartRequest('PUT', uri);
-
       request.headers.addAll({
         'Authorization': 'Bearer ${SessionService.token}',
       });
-
       request.fields['nombre'] = nombre;
       request.fields['maquina'] = maquina;
       request.fields['descripcion'] = descripcion;
@@ -129,7 +121,6 @@ class EjercicioService {
       request.fields['respiracion'] = respiracion;
       request.fields['ritmo_movimiento'] = ritmoMovimiento;
       request.fields['categorias'] = jsonEncode(categoriasIds);
-
       if (imagenFile != null) {
         request.files.add(
           http.MultipartFile.fromBytes(
@@ -139,7 +130,6 @@ class EjercicioService {
           ),
         );
       }
-
       if (gifFile != null) {
         request.files.add(
           http.MultipartFile.fromBytes(
@@ -149,11 +139,9 @@ class EjercicioService {
           ),
         );
       }
-
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
       final data = _decodificarRespuesta(response.body);
-
       if (response.statusCode == 200) {
         return {
           'success': true,
@@ -161,28 +149,12 @@ class EjercicioService {
           'data': data['ejercicio'],
         };
       }
-
       return {
         'success': false,
         'message': data['mensaje'] ?? 'Error al actualizar el ejercicio',
       };
     } catch (e) {
       return {'success': false, 'message': 'Error de conexión: $e'};
-    }
-  }
-
-  static String _nombreArchivo(XFile archivo, String predeterminado) {
-    final nombre = archivo.name.trim();
-    return nombre.isEmpty ? predeterminado : nombre;
-  }
-
-  static Map<String, dynamic> _decodificarRespuesta(String body) {
-    try {
-      final decoded = jsonDecode(body);
-      if (decoded is Map<String, dynamic>) return decoded;
-      return {};
-    } catch (_) {
-      return {};
     }
   }
 
@@ -202,7 +174,9 @@ class EjercicioService {
     }
   }
 
-  // GESTIÓN DE CATEGORÍAS
+  // ==========================================
+  // GESTIÓN DE CATEGORÍAS (ADMINISTRADOR)
+  // ==========================================
 
   static Future<List<dynamic>> obtenerCategorias() async {
     try {
@@ -213,7 +187,6 @@ class EjercicioService {
           'Authorization': 'Bearer ${SessionService.token}',
         },
       );
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['categorias'] ?? [];
@@ -235,7 +208,6 @@ class EjercicioService {
         },
         body: jsonEncode({'nombre': nombre}),
       );
-
       final data = _decodificarRespuesta(response.body);
       if (response.statusCode == 201) {
         return {
@@ -244,7 +216,6 @@ class EjercicioService {
           'categoria': data['categoria'],
         };
       }
-
       return {
         'success': false,
         'message': data['mensaje'] ?? 'Error al crear la categoría',
@@ -268,7 +239,6 @@ class EjercicioService {
         },
         body: jsonEncode({'nombre': nuevoNombre}),
       );
-
       final data = _decodificarRespuesta(response.body);
       if (response.statusCode == 200) {
         return {
@@ -276,7 +246,6 @@ class EjercicioService {
           'message': data['mensaje'] ?? 'Categoría actualizada correctamente',
         };
       }
-
       return {
         'success': false,
         'message': data['mensaje'] ?? 'Error al actualizar la categoría',
@@ -298,7 +267,6 @@ class EjercicioService {
           'Authorization': 'Bearer ${SessionService.token}',
         },
       );
-
       final data = _decodificarRespuesta(response.body);
       if (response.statusCode == 200) {
         return {
@@ -306,13 +274,11 @@ class EjercicioService {
           'message': data['mensaje'] ?? 'Categoría eliminada correctamente',
         };
       }
-
       if (response.statusCode == 409) {
         final ejercicio = data['ejercicio'];
         final nombreEjercicio = ejercicio is Map
             ? (ejercicio['nombre'] ?? 'un ejercicio').toString()
             : 'un ejercicio';
-
         return {
           'success': false,
           'message': data['mensaje'] ??
@@ -320,13 +286,114 @@ class EjercicioService {
           'ejercicio': nombreEjercicio,
         };
       }
-
       return {
         'success': false,
         'message': data['mensaje'] ?? 'Error al eliminar la categoría',
       };
     } catch (e) {
       return {'success': false, 'message': 'Error de conexión con el servidor'};
+    }
+  }
+
+  // ==========================================
+  // FUNCIONES DE CLIENTE (CONSULTA Y ENTRENAMIENTO)
+  // ==========================================
+
+  /// Obtiene el catálogo completo de ejercicios registrados en el Backend para el cliente
+  static Future<List<Map<String, dynamic>>> obtenerEjerciciosCliente() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/ejercicios'),
+        headers: {
+          ...ApiConfig.headers,
+          'Authorization': 'Bearer ${SessionService.token}',
+        },
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List rawList = data['ejercicios'] ?? [];
+        return rawList.map((item) => item as Map<String, dynamic>).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Error al obtener ejercicios para cliente: $e');
+      return [];
+    }
+  }
+
+  /// Obtiene los ejercicios filtrados por el ID de una categoría específica
+  static Future<List<Map<String, dynamic>>> obtenerEjerciciosPorCategoriaCliente(int idCategoria) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/ejercicios/categoria/$idCategoria'),
+        headers: {
+          ...ApiConfig.headers,
+          'Authorization': 'Bearer ${SessionService.token}',
+        },
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List rawList = data['ejercicios'] ?? [];
+        return rawList.map((item) => item as Map<String, dynamic>).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Error al filtrar ejercicios por categoría para cliente: $e');
+      return [];
+    }
+  }
+
+  /// Obtiene el detalle de un solo ejercicio por su ID
+  static Future<Map<String, dynamic>?> obtenerDetalleEjercicioCliente(int idEjercicio) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/ejercicios/$idEjercicio'),
+        headers: {
+          ...ApiConfig.headers,
+          'Authorization': 'Bearer ${SessionService.token}',
+        },
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['ejercicio'] as Map<String, dynamic>?;
+      }
+      return null;
+    } catch (e) {
+      print('Error al obtener detalle de ejercicio para cliente: $e');
+      return null;
+    }
+  }
+
+  /// Obtiene el listado de nombres de categorías para los filtros horizontales y avanzados
+  static Future<List<String>> obtenerNombresCategoriasCliente() async {
+    try {
+      final listaCategorias = await obtenerCategorias();
+      return listaCategorias
+          .map((cat) => (cat['nombre'] ?? '').toString())
+          .where((nombre) => nombre.isNotEmpty)
+          .toList();
+    } catch (e) {
+      print('Error al obtener nombres de categorías para cliente: $e');
+      return [];
+    }
+  }
+
+  // ==========================================
+  // MÉTODOS AUXILIARES PRIVADOS
+  // ==========================================
+
+  static String _nombreArchivo(XFile archivo, String predeterminado) {
+    final nombre = archivo.name.trim();
+    return nombre.isEmpty ? predeterminado : nombre;
+  }
+
+  static Map<String, dynamic> _decodificarRespuesta(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) return decoded;
+      return {};
+    } catch (_) {
+      return {};
     }
   }
 }

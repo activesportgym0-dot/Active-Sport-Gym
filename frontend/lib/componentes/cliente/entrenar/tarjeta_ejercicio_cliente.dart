@@ -18,6 +18,45 @@ class TarjetaEjercicioCliente extends StatelessWidget {
     required this.onTap,
   });
 
+  Widget _construirImagen(String ruta) {
+    if (ruta.isEmpty) {
+      return Container(
+        width: 70,
+        height: 70,
+        color: AppColors.grisMedio,
+        child: const Icon(Icons.fitness_center, color: AppColors.blancoPuro),
+      );
+    }
+
+    if (ruta.startsWith('http://') || ruta.startsWith('https://')) {
+      return Image.network(
+        ruta,
+        width: 70,
+        height: 70,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          width: 70,
+          height: 70,
+          color: AppColors.grisMedio,
+          child: const Icon(Icons.fitness_center, color: AppColors.blancoPuro),
+        ),
+      );
+    } else {
+      return Image.asset(
+        ruta,
+        width: 70,
+        height: 70,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          width: 70,
+          height: 70,
+          color: AppColors.grisMedio,
+          child: const Icon(Icons.fitness_center, color: AppColors.blancoPuro),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -35,18 +74,7 @@ class TarjetaEjercicioCliente extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Image.asset(
-                  imagePath,
-                  width: 70,
-                  height: 70,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    width: 70,
-                    height: 70,
-                    color: AppColors.grisMedio,
-                    child: const Icon(Icons.fitness_center, color: AppColors.blancoPuro),
-                  ),
-                ),
+                child: _construirImagen(imagePath),
               ),
               const SizedBox(width: 12),
               Expanded(

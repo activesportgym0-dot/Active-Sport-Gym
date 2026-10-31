@@ -1,12 +1,18 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import '../models/producto_model.dart';
 import 'api_config.dart';
 import 'auth_service.dart';
 
+/// SERVICIO ÚNICO DE PRODUCTOS Y CATEGORÍAS DE PRODUCTOS.
+/// Lo usan las dos partes de la app, para no crear servicios separados por rol:
+///  - ADMINISTRADOR: crear, editar y eliminar productos y categorías.
+///  - CLIENTE: ver el catálogo (obtenerProductos / obtenerCategorias), ver el
+///    detalle de un producto (obtenerProductoPorId) y pedir aviso cuando un
+///    producto está agotado (solicitarAvisoStock).
 class ProductoService {
-  // Ajusta si tu ruta en el backend es '/productos' (en plural) o '/producto'
-  static const String _rutaProductos = '/producto'; 
+  static const String _rutaProductos = '/producto';
   static const String _rutaCategorias = '/categorias-productos';
 
   static Map<String, String> get _headersJson => {
@@ -16,27 +22,22 @@ class ProductoService {
 
   // GESTIÓN DE PRODUCTOS
 
+  /// Lanza una excepción con el motivo real si el servidor responde con error,
+  /// para que la pantalla lo muestre en vez de decir "no hay productos".
   static Future<List<dynamic>> obtenerProductos() async {
-    try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}$_rutaProductos'),
-        headers: _headersJson,
-      );
-      
-      if (response.statusCode == 200) {
-        return _extraerListaFlexible(response.body);
-      }
-      
-      throw Exception(
-        _mensaje(
-          _decodificarRespuesta(response.body),
-          'No se pudieron cargar los productos (${response.statusCode})',
-        ),
-      );
-    } catch (e) {
-      print("Excepción en obtenerProductos: $e");
-      return [];
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}$_rutaProductos'),
+      headers: _headersJson,
+    );
+    if (response.statusCode == 200) {
+      return _extraerLista(response.body, 'productos');
     }
+    throw Exception(
+      _mensaje(
+        _decodificarRespuesta(response.body),
+        'No se pudieron cargar los productos (${response.statusCode})',
+      ),
+    );
   }
 
   static Future<Map<String, dynamic>> crearProducto({
@@ -140,22 +141,71 @@ class ProductoService {
     }
   }
 
+  // CLIENTE: DETALLE Y AVISO DE STOCK
+
+  /// GET /producto/:id -> un producto. Lanza una excepción con el motivo si falla.
+  static Future<ProductoModel> obtenerProductoPorId(int idProducto) async {
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}$_rutaProductos/$idProducto'),
+      headers: _headersJson,
+    );
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map) {
+        return ProductoModel.fromJson(Map<String, dynamic>.from(decoded));
+      }
+      throw Exception('Respuesta inesperada del servidor');
+    }
+    throw Exception(
+      _mensaje(
+        _decodificarRespuesta(response.body),
+        'No se pudo cargar el producto (${response.statusCode})',
+      ),
+    );
+  }
+
+  /// POST /producto/:id/solicitar-aviso (solo clientes). Registra que el cliente
+  /// quiere un correo cuando el producto vuelva a tener stock.
+  static Future<Map<String, dynamic>> solicitarAvisoStock(int idProducto) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}$_rutaProductos/$idProducto/solicitar-aviso'),
+        headers: _headersJson,
+      );
+      final data = _decodificarRespuesta(response.body);
+
+      // 201 = solicitud registrada, 200 = ya la había registrado antes
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': data['mensaje'] ?? '¡Te avisaremos apenas haya stock disponible!',
+        };
+      }
+      return {
+        'success': false,
+        'message': _mensaje(data, 'No se pudo registrar la solicitud'),
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
   // GESTIÓN DE CATEGORÍAS
 
   static Future<List<dynamic>> obtenerCategorias() async {
-    try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}$_rutaCategorias'),
-        headers: _headersJson,
-      );
-      if (response.statusCode == 200) {
-        return _extraerListaFlexible(response.body);
-      }
-      return [];
-    } catch (e) {
-      print("Excepción en obtenerCategorias: $e");
-      return [];
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}$_rutaCategorias'),
+      headers: _headersJson,
+    );
+    if (response.statusCode == 200) {
+      return _extraerLista(response.body, 'categorias');
     }
+    throw Exception(
+      _mensaje(
+        _decodificarRespuesta(response.body),
+        'No se pudieron cargar las categorías (${response.statusCode})',
+      ),
+    );
   }
 
   static Future<Map<String, dynamic>> crearCategoria(String nombre) async {
@@ -262,6 +312,8 @@ class ProductoService {
     };
   }
 
+  /// Envía un multipart (crear o actualizar). La imagen va en el campo
+  /// 'imagen', que es el que espera uploadProducto.single("imagen").
   static Future<Map<String, dynamic>> _enviarProducto({
     required String metodo,
     required String ruta,
@@ -306,26 +358,23 @@ class ProductoService {
     }
   }
 
+  /// El backend de compras devuelve el texto en 'mensaje' (éxito) o en
+  /// 'error' (fallo); aquí se leen los dos.
   static String _mensaje(Map<String, dynamic> data, String porDefecto) {
     return (data['mensaje'] ?? data['error'] ?? porDefecto).toString();
   }
 
-  /// Extractor flexible que detecta listas sin importar cómo las envuelva el backend
-  static List<dynamic> _extraerListaFlexible(String body) {
+  /// Productos y categorías llegan como lista directa; si algún día vienen
+  /// envueltos en un objeto ({'productos': [...]}) también funciona.
+  static List<dynamic> _extraerLista(String body, String clave) {
     try {
       final decoded = jsonDecode(body);
       if (decoded is List) return decoded;
-      if (decoded is Map) {
-        // Busca en cualquier llave común que devuelva una lista (productos, data, categorias, etc.)
-        for (var entry in decoded.entries) {
-          if (entry.value is List) {
-            return entry.value as List;
-          }
-        }
+      if (decoded is Map && decoded[clave] is List) {
+        return decoded[clave] as List;
       }
       return [];
-    } catch (e) {
-      print("Error decodificando lista: $e");
+    } catch (_) {
       return [];
     }
   }

@@ -366,6 +366,10 @@ class _HomeAdministradorScreenState extends State<HomeAdministradorScreen> {
               onPressed: () => _irA(const EntrenarAdminScreen()),
             ),
             IconButton(
+              icon: const Icon(Icons.chat_bubble_outline, color: AppColors.grisMedio, size: 28),
+              onPressed: () => _irA(const ComprasAdminScreen()),
+            ),
+            IconButton(
               icon: const Icon(Icons.shopping_cart_outlined, color: AppColors.grisMedio, size: 28),
               onPressed: () => _irA(const ComprasAdminScreen()),
             ),

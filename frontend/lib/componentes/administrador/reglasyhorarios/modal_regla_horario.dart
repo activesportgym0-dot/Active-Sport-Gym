@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
+import 'package:frontend/models/regla_horario_model.dart'; // 👈 AJUSTA la carpeta si la tuya es distinta
 
 class ModalReglaHorario extends StatefulWidget {
   final Map<String, dynamic>? registroExistente;
-  final Function(String tipo, String titulo, String contenido) onSave;
+
+  /// Devuelve null si se guardó bien, o un texto con el error para mostrarlo en el modal.
+  final Future<String?> Function(String tipo, String titulo, String contenido) onSave;
 
   const ModalReglaHorario({
     super.key,
@@ -21,10 +24,18 @@ class _ModalReglaHorarioState extends State<ModalReglaHorario> {
   late TextEditingController _tituloController;
   late TextEditingController _contenidoController;
 
+  bool _guardando = false;
+  String? _errorMsg;
+
   @override
   void initState() {
     super.initState();
-    _tipoSeleccionado = widget.registroExistente?['tipo'] ?? 'Horario';
+    // Si en la base de datos hay un tipo distinto a Horario/Regla, el dropdown
+    // se rompería; en ese caso arrancamos en 'Horario'.
+    final tipoInicial = widget.registroExistente?['tipo'];
+    _tipoSeleccionado = ReglaHorarioModel.tipos.contains(tipoInicial)
+        ? tipoInicial as String
+        : ReglaHorarioModel.tipoHorario;
     _tituloController = TextEditingController(text: widget.registroExistente?['titulo'] ?? '');
     _contenidoController = TextEditingController(text: widget.registroExistente?['contenido'] ?? '');
   }
@@ -34,6 +45,35 @@ class _ModalReglaHorarioState extends State<ModalReglaHorario> {
     _tituloController.dispose();
     _contenidoController.dispose();
     super.dispose();
+  }
+
+  Future<void> _guardar() async {
+    final titulo = _tituloController.text.trim();
+    final contenido = _contenidoController.text.trim();
+
+    if (titulo.isEmpty || contenido.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Todos los campos son obligatorios'), backgroundColor: Colors.redAccent),
+      );
+      return;
+    }
+
+    setState(() {
+      _guardando = true;
+      _errorMsg = null;
+    });
+
+    final error = await widget.onSave(_tipoSeleccionado, titulo, contenido);
+    if (!mounted) return;
+
+    if (error == null) {
+      Navigator.pop(context);
+    } else {
+      setState(() {
+        _guardando = false;
+        _errorMsg = error;
+      });
+    }
   }
 
   @override
@@ -68,7 +108,7 @@ class _ModalReglaHorarioState extends State<ModalReglaHorario> {
               enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: AppColors.grisMedio)),
               focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: AppColors.verdePrimario)),
             ),
-            items: ['Horario', 'Regla'].map((String tipo) {
+            items: ReglaHorarioModel.tipos.map((String tipo) {
               return DropdownMenuItem<String>(
                 value: tipo,
                 child: Text(tipo),
@@ -105,6 +145,15 @@ class _ModalReglaHorarioState extends State<ModalReglaHorario> {
               focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: AppColors.verdePrimario)),
             ),
           ),
+          // Solo aparece cuando el servidor devuelve un error (no altera el diseño normal)
+          if (_errorMsg != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Text(
+                _errorMsg!,
+                style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+              ),
+            ),
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -114,20 +163,17 @@ class _ModalReglaHorarioState extends State<ModalReglaHorario> {
                 backgroundColor: AppColors.verdePrimario,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              onPressed: () {
-                if (_tituloController.text.trim().isEmpty || _contenidoController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Todos los campos son obligatorios'), backgroundColor: Colors.redAccent),
-                  );
-                  return;
-                }
-                widget.onSave(_tipoSeleccionado, _tituloController.text.trim(), _contenidoController.text.trim());
-                Navigator.pop(context);
-              },
-              child: Text(
-                widget.registroExistente == null ? 'GUARDAR REGISTRO' : 'ACTUALIZAR REGISTRO',
-                style: EstiloTexto.botonPrincipal.copyWith(color: AppColors.fondoNegro, fontWeight: FontWeight.bold),
-              ),
+              onPressed: _guardando ? null : _guardar,
+              child: _guardando
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.fondoNegro),
+                    )
+                  : Text(
+                      widget.registroExistente == null ? 'GUARDAR REGISTRO' : 'ACTUALIZAR REGISTRO',
+                      style: EstiloTexto.botonPrincipal.copyWith(color: AppColors.fondoNegro, fontWeight: FontWeight.bold),
+                    ),
             ),
           ),
         ],

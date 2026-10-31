@@ -5,6 +5,7 @@ import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
 import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:frontend/models/notificacion_model.dart';
 import 'package:frontend/services/notificacion_service.dart'; // 👈 Importación de la burbuja de la IA
 class NotificacionesAdminScreen extends StatefulWidget {
@@ -57,11 +58,26 @@ class _NotificacionesAdminScreenState extends State<NotificacionesAdminScreen> {
       mensaje: datos['mensaje'].toString(),
       tipo: datos['tipo'].toString(),
       idUsuario: datos['id_usuario'] as int?,
+      imagen: datos['imagen'] as XFile?,
     );
     if (!mounted) return;
 
     final exito = resultado['success'] == true;
-    _mostrarMensaje(resultado['message']?.toString() ?? 'Operación finalizada', exito: exito);
+    final imagenElegida = datos['imagen'] != null;
+    final imagenGuardada = (resultado['imagen_url']?.toString() ?? '').isNotEmpty;
+
+    if (exito && imagenElegida && !imagenGuardada) {
+      // La notificación se creó, pero el servidor no recibió o no guardó la imagen
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('La notificación se creó, pero la imagen no se guardó en el servidor.'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 5),
+        ),
+      );
+    } else {
+      _mostrarMensaje(resultado['message']?.toString() ?? 'Operación finalizada', exito: exito);
+    }
     if (exito) await _cargarNotificaciones();
   }
 

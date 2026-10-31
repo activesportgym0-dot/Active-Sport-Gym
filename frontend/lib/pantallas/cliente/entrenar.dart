@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/componentes/administrador/compras/modal_filtro_categorias.dart';
 import 'package:frontend/componentes/administrador/entrenar/category_chip.dart';
 import 'package:frontend/componentes/administrador/entrenar/modal_seleccion_multiples_categorias.dart';
 import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
 import 'package:frontend/componentes/cliente/entrenar/barra_busqueda_cliente.dart';
 import 'package:frontend/componentes/cliente/entrenar/tarjeta_ejercicio_cliente.dart';
 import 'package:frontend/pantallas/cliente/detalle_ejercicio_cliente.dart';
+import 'package:frontend/services/ejercicio_service.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
 
 class EntrenarClienteScreen extends StatefulWidget {
   final String categoriaInicial;
-
   const EntrenarClienteScreen({
     super.key,
     this.categoriaInicial = 'Todos',
@@ -24,66 +23,91 @@ class EntrenarClienteScreen extends StatefulWidget {
 
 class _EntrenarClienteScreenState extends State<EntrenarClienteScreen> {
   late String categoriaSeleccionada;
-  List<String> categoriasFiltroAvanzado = []; 
+  List<String> categoriasFiltroAvanzado = [];
   final TextEditingController _searchController = TextEditingController();
 
-  List<String> listaCategoriasEntrenamiento = ['Cardio', 'Tren superior', 'Piernas', 'Glúteos', 'Resistencia'];
-
-  // Lista simulada de ejercicios
-  final List<Map<String, dynamic>> _todosLosEjercicios = [
-    {
-      'title': 'Crunch',
-      'category': 'Tren superior',
-      'description': 'Sirve específicamente para aislar y fortalecer el recto abdominal...',
-      'imagePath': 'assets/images/3.jpg',
-    },
-    {
-      'title': 'Press militar',
-      'category': 'Tren superior',
-      'description': 'Ejercicio fundamental para el desarrollo del hombro...',
-      'imagePath': 'assets/images/4.jpg',
-    },
-    {
-      'title': 'Salto de cuerda',
-      'category': 'Cardio',
-      'description': 'Excelente ejercicio aeróbico para mejorar la resistencia cardiovascular...',
-      'imagePath': 'assets/images/3.jpg',
-    },
-  ];
-
-  // Lógica de filtrado combinada (Buscador + Chips simples + Filtro avanzado)
-  List<Map<String, dynamic>> get ejerciciosFiltrados {
-    String textoBusqueda = _searchController.text.toLowerCase().trim();
-
-    return _todosLosEjercicios.where((ejercicio) {
-      bool coincideTexto = textoBusqueda.isEmpty ||
-          ejercicio['title']!.toLowerCase().contains(textoBusqueda) || 
-          ejercicio['description']!.toLowerCase().contains(textoBusqueda);
-         
-      bool coincideCategoriaSimple = categoriaSeleccionada.toLowerCase() == 'todos' || 
-          ejercicio['category']!.toLowerCase() == categoriaSeleccionada.toLowerCase();
-
-      bool coincideFiltroAvanzado = categoriasFiltroAvanzado.isEmpty || 
-          categoriasFiltroAvanzado.map((c) => c.toLowerCase()).contains(ejercicio['category']!.toLowerCase());
-
-      return coincideTexto && (categoriasFiltroAvanzado.isNotEmpty ? coincideFiltroAvanzado : coincideCategoriaSimple);
-    }).toList();
-  }
+  List<String> listaCategoriasEntrenamiento = [];
+  List<Map<String, dynamic>> _todosLosEjercicios = [];
+  bool _cargando = true;
 
   @override
   void initState() {
     super.initState();
     categoriaSeleccionada = widget.categoriaInicial;
-
     _searchController.addListener(() {
-      setState(() {});
+      if (mounted) setState(() {});
     });
+    _cargarDatosDesdeBackend();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Carga ejercicios y categorías reales directamente desde el Backend
+  Future<void> _cargarDatosDesdeBackend() async {
+    if (!mounted) return;
+    setState(() => _cargando = true);
+
+    try {
+      final respuestas = await Future.wait([
+        EjercicioService.obtenerEjerciciosCliente(),
+        EjercicioService.obtenerNombresCategoriasCliente(),
+      ]);
+
+      if (!mounted) return;
+
+      setState(() {
+        _todosLosEjercicios = respuestas[0] as List<Map<String, dynamic>>;
+        listaCategoriasEntrenamiento = respuestas[1] as List<String>;
+        _cargando = false;
+      });
+    } catch (e) {
+      print('Error cargando datos de entrenamiento: $e');
+      if (mounted) {
+        setState(() => _cargando = false);
+      }
+    }
+  }
+
+  /// Extrae el nombre de la categoría del objeto de ejercicio devuelto por el Backend
+  String _obtenerCategoriaEjercicio(Map<String, dynamic> ej) {
+    var relaciones = ej['ejercicio_categoria'] as List? ?? [];
+    if (relaciones.isNotEmpty) {
+      var cat = relaciones.first['categoria_ejercicios'];
+      if (cat != null && cat['nombre'] != null) {
+        return cat['nombre'].toString();
+      }
+    }
+    return 'General';
+  }
+
+  /// Lógica de filtrado en tiempo real (Buscador + Chips simples + Filtro avanzado)
+  List<Map<String, dynamic>> get ejerciciosFiltrados {
+    String textoBusqueda = _searchController.text.toLowerCase().trim();
+
+    return _todosLosEjercicios.where((ejercicio) {
+      String titulo = (ejercicio['nombre'] ?? '').toString();
+      String descripcion = (ejercicio['descripcion'] ?? '').toString();
+      String categoriaEjercicio = _obtenerCategoriaEjercicio(ejercicio);
+
+      bool coincideTexto = textoBusqueda.isEmpty ||
+          titulo.toLowerCase().contains(textoBusqueda) ||
+          descripcion.toLowerCase().contains(textoBusqueda);
+
+      bool coincideCategoriaSimple = categoriaSeleccionada.toLowerCase() == 'todos' ||
+          categoriaEjercicio.toLowerCase() == categoriaSeleccionada.toLowerCase();
+
+      bool coincideFiltroAvanzado = categoriasFiltroAvanzado.isEmpty ||
+          categoriasFiltroAvanzado
+              .map((c) => c.toLowerCase())
+              .contains(categoriaEjercicio.toLowerCase());
+
+      return coincideTexto &&
+          (categoriasFiltroAvanzado.isNotEmpty ? coincideFiltroAvanzado : coincideCategoriaSimple);
+    }).toList();
   }
 
   void _abrirModalFiltros() {
@@ -144,9 +168,8 @@ class _EntrenarClienteScreenState extends State<EntrenarClienteScreen> {
   @override
   Widget build(BuildContext context) {
     final listaActual = ejerciciosFiltrados;
-
-    final categoriasVisibles = categoriasFiltroAvanzado.isNotEmpty 
-        ? categoriasFiltroAvanzado 
+    final categoriasVisibles = categoriasFiltroAvanzado.isNotEmpty
+        ? categoriasFiltroAvanzado
         : ['Todos', ...listaCategoriasEntrenamiento];
 
     return Scaffold(
@@ -174,14 +197,14 @@ class _EntrenarClienteScreenState extends State<EntrenarClienteScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Barra de búsqueda y filtros modularizada
+              // Barra de búsqueda y filtros
               BarraBusquedaCliente(
                 searchController: _searchController,
                 onOpenFilters: _abrirModalFiltros,
               ),
               const SizedBox(height: 12),
 
-              // Título de Categorías con su icono idéntico al de Compras
+              // Título de Categorías
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
@@ -201,10 +224,9 @@ class _EntrenarClienteScreenState extends State<EntrenarClienteScreen> {
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   children: categoriasVisibles.map((cat) {
-                    bool estaSeleccionado = categoriasFiltroAvanzado.isNotEmpty 
-                        ? categoriasFiltroAvanzado.contains(cat) 
+                    bool estaSeleccionado = categoriasFiltroAvanzado.isNotEmpty
+                        ? categoriasFiltroAvanzado.contains(cat)
                         : categoriaSeleccionada.toLowerCase() == cat.toLowerCase();
-
                     return CategoryChip(
                       label: cat,
                       isSelected: estaSeleccionado,
@@ -232,8 +254,10 @@ class _EntrenarClienteScreenState extends State<EntrenarClienteScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('EJERCICIOS DISPONIBLES', style: EstiloTexto.enlaceNegritaRoboto.copyWith(letterSpacing: 1.1)),
-                    Text('${listaActual.length} en total', style: EstiloTexto.textoNormalRoboto.copyWith(fontSize: 11)),
+                    Text('EJERCICIOS DISPONIBLES',
+                        style: EstiloTexto.enlaceNegritaRoboto.copyWith(letterSpacing: 1.1)),
+                    Text('${listaActual.length} en total',
+                        style: EstiloTexto.textoNormalRoboto.copyWith(fontSize: 11)),
                   ],
                 ),
               ),
@@ -241,38 +265,59 @@ class _EntrenarClienteScreenState extends State<EntrenarClienteScreen> {
 
               // Listado de ejercicios
               Expanded(
-                child: listaActual.isEmpty
+                child: _cargando
                     ? const Center(
-                        child: Text(
-                          'No se encontraron ejercicios.',
-                          style: TextStyle(color: AppColors.grisClaro, fontSize: 13),
-                        ),
+                        child: CircularProgressIndicator(color: AppColors.verdePrimario),
                       )
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: listaActual.length,
-                        itemBuilder: (context, index) {
-                          final ej = listaActual[index];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: TarjetaEjercicioCliente(
-                              category: ej['category']!,
-                              title: ej['title']!,
-                              description: ej['description']!,
-                              imagePath: ej['imagePath']!,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => DetalleEjercicioClienteScreen(
-                                      ejercicio: ej,
+                    : RefreshIndicator(
+                        color: AppColors.verdePrimario,
+                        onRefresh: _cargarDatosDesdeBackend,
+                        child: listaActual.isEmpty
+                            ? ListView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                children: const [
+                                  SizedBox(height: 100),
+                                  Center(
+                                    child: Text(
+                                      'No se encontraron ejercicios registrados.',
+                                      style: TextStyle(color: AppColors.grisClaro, fontSize: 13),
                                     ),
                                   ),
-                                );
-                              },
-                            ),
-                          );
-                        },
+                                ],
+                              )
+                            : ListView.builder(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                itemCount: listaActual.length,
+                                itemBuilder: (context, index) {
+                                  final ej = listaActual[index];
+                                  final String titulo = ej['nombre'] ?? 'Ejercicio';
+                                  final String descripcion =
+                                      ej['descripcion'] ?? 'Sin descripción';
+                                  final String imagen = ej['imagen'] ?? '';
+                                  final String categoria = _obtenerCategoriaEjercicio(ej);
+
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: TarjetaEjercicioCliente(
+                                      category: categoria,
+                                      title: titulo,
+                                      description: descripcion,
+                                      imagePath: imagen,
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => DetalleEjercicioClienteScreen(
+                                              ejercicio: ej,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  );
+                                },
+                              ),
                       ),
               ),
             ],

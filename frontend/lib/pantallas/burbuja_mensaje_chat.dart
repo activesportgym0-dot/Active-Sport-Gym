@@ -4,13 +4,15 @@ import 'package:frontend/core/colores.dart';
 class BurbujaMensajeChat extends StatelessWidget {
   final String texto;
   final String hora;
-  final bool esUsuario; // true si es el usuario, false si es el bot IA
+  final bool esUsuario; 
+  final bool esAdmin;
 
   const BurbujaMensajeChat({
     super.key,
     required this.texto,
     required this.hora,
     required this.esUsuario,
+    this.esAdmin = false,
   });
 
   @override
@@ -21,7 +23,6 @@ class BurbujaMensajeChat extends StatelessWidget {
         mainAxisAlignment: esUsuario ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // Avatar de la IA (ia.png) a la izquierda (si no es usuario)
           if (!esUsuario) ...[
             Container(
               margin: const EdgeInsets.only(right: 8, bottom: 4),
@@ -39,8 +40,6 @@ class BurbujaMensajeChat extends StatelessWidget {
               ),
             ),
           ],
-
-          // Burbuja de mensaje
           Flexible(
             child: Container(
               padding: const EdgeInsets.all(12),
@@ -59,12 +58,11 @@ class BurbujaMensajeChat extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Etiqueta y Hora del mensaje
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        esUsuario ? 'User' : 'Bot',
+                        esUsuario ? (esAdmin ? 'Admin' : 'User') : 'Bot',
                         style: TextStyle(
                           fontFamily: 'RobotoCondensed',
                           color: esUsuario ? AppColors.verdePrimario : Colors.grey.withOpacity(0.9),
@@ -84,7 +82,6 @@ class BurbujaMensajeChat extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  // Texto del mensaje
                   Text(
                     texto,
                     style: const TextStyle(
@@ -97,15 +94,13 @@ class BurbujaMensajeChat extends StatelessWidget {
               ),
             ),
           ),
-
-          // Avatar del Usuario a la derecha (si es usuario)
           if (esUsuario) ...[
             Container(
               margin: const EdgeInsets.only(left: 8, bottom: 4),
-              child: const CircleAvatar(
+              child: CircleAvatar(
                 radius: 14,
                 backgroundColor: AppColors.verdePrimario,
-                child: Icon(Icons.person, color: Colors.black, size: 16),
+                child: Icon(esAdmin ? Icons.admin_panel_settings : Icons.person, color: Colors.black, size: 16),
               ),
             ),
           ],

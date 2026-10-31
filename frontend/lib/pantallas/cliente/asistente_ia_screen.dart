@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
-import 'package:frontend/pantallas/cliente/burbuja_mensaje_chat.dart';
+import 'package:frontend/pantallas//burbuja_mensaje_chat.dart';
 
 class AsistenteIAScreen extends StatefulWidget {
   const AsistenteIAScreen({super.key});

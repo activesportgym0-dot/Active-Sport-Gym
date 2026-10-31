@@ -1,3 +1,5 @@
+import '../core/formato.dart';
+
 /// Categoría de productos de la tienda (tabla categorias_productos).
 class CategoriaProductoModel {
   final int idCategoria;
@@ -54,6 +56,31 @@ class ProductoModel {
     this.modoUso = '',
     this.imagenUrl = '',
   });
+
+  /// Mapa con las claves que usan TarjetaProductoCliente y DetalleProductoClienteScreen
+  /// (nombre, marca, stock, precio, imagen, categoria...), así esos componentes
+  /// siguen funcionando con el mismo diseño. El producto solo trae el id de la
+  /// categoría, por eso el nombre se recibe aparte.
+  Map<String, dynamic> toMapaCliente({String nombreCategoria = ''}) {
+    return {
+      'id_producto': idProducto,
+      'nombre': nombre,
+      'marca': marca.isEmpty ? 'Sin marca' : marca,
+      'stock': stock > 0 ? 'Stock: $stock' : 'Agotado',
+      'stock_int': stock,
+      'precio': Formato.precio(precio), // texto: "$120.000"
+      'precio_num': precio, // número, para cálculos
+      'imagen': imagenUrl, // URL de Cloudinary (vacía si no tiene foto)
+      'categoria': nombreCategoria,
+      'tipo_producto': tipoProducto,
+      'sabor': sabor,
+      'peso_neto': pesoNeto,
+      'servicios': servicios,
+      'descripcion': descripcion,
+      'beneficios': beneficios,
+      'modo_uso': modoUso,
+    };
+  }
 
   bool get esConsumible => tipoProducto == 'consumible';
   bool get agotado => stock <= 0;

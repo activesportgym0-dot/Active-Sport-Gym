@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
-import 'package:frontend/componentes/cliente/rutina/diaria/modal_buscador_ejercicios.dart';
 import 'package:frontend/componentes/cliente/rutina/diaria/tarjeta_ejercicio_agregado.dart';
 import 'package:frontend/componentes/cliente/rutina/diaria/dialog_confirmar_cancelar.dart';
 import 'package:frontend/pantallas/cliente/rutina/detalle_rutina_diaria_screen.dart';
 import 'package:frontend/pantallas/cliente/rutina/semanal/crear_rutina_semanal_screen.dart';
 import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
+import 'package:frontend/models/ejercicio_catalogo_model.dart';
+import 'package:frontend/models/rutina_model.dart';
+import 'package:frontend/services/ejercicio_service.dart';
+import 'package:frontend/services/rutina_service.dart';
 
 class CrearRutinaDiariaScreen extends StatefulWidget {
   const CrearRutinaDiariaScreen({super.key});
@@ -20,24 +23,54 @@ class _CrearRutinaDiariaScreenState extends State<CrearRutinaDiariaScreen> {
   final TextEditingController _nombreRutinaController = TextEditingController();
   final TextEditingController _fechaController = TextEditingController();
 
-  final List<Map<String, dynamic>> _catalogoGlobalAdmin = [
-    {
-      'id_ejercicio': 1,
-      'title': 'Remo horizontal con mancuernas',
-      'category': 'Glúteos',
-      'description': 'Mantén la espalda recta y trata de llevar los codos al techo.',
-      'imagePath': 'assets/images/3.jpg',
-    },
-    {
-      'id_ejercicio': 2,
-      'title': 'Crunch abdominal',
-      'category': 'Tren superior',
-      'description': 'Sirve específicamente para aislar y fortalecer el recto abdominal.',
-      'imagePath': 'assets/images/4.jpg',
-    },
-  ];
+  // Catálogo real de ejercicios (GET /ejercicios) y sus categorías (GET /categorias)
+  List<EjercicioCatalogoModel> _catalogo = [];
+  List<String> _categorias = [];
+  bool _cargandoCatalogo = true;
+  bool _guardando = false;
+
+  // La fecha se muestra como DD/MM/AAAA pero se envía al backend como AAAA-MM-DD
+  DateTime? _fechaSeleccionada;
 
   final List<Map<String, dynamic>> _ejerciciosSeleccionados = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarCatalogo();
+  }
+
+  Future<void> _cargarCatalogo() async {
+    final ejerciciosRaw = await EjercicioService.obtenerEjercicios();
+    final categoriasRaw = await EjercicioService.obtenerCategorias();
+    if (!mounted) return;
+
+    setState(() {
+      _catalogo = ejerciciosRaw
+          .whereType<Map>()
+          .map((e) => EjercicioCatalogoModel.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+      _categorias = categoriasRaw
+          .whereType<Map>()
+          .map((c) => (c['nombre'] ?? '').toString())
+          .where((n) => n.isNotEmpty)
+          .toList();
+      _cargandoCatalogo = false;
+    });
+
+    if (_catalogo.isEmpty) {
+      _mostrarMensaje('No se pudo cargar el catálogo de ejercicios.', exito: false);
+    }
+  }
+
+  void _mostrarMensaje(String mensaje, {required bool exito}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: exito ? Colors.green : Colors.redAccent,
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -57,46 +90,54 @@ class _CrearRutinaDiariaScreenState extends State<CrearRutinaDiariaScreen> {
     }
   }
 
-  void _abrirBuscadorModal() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => ModalBuscadorEjercicios(
-        catalogoEjercicios: _catalogoGlobalAdmin,
-        onEjercicioSeleccionado: (ejercicioElegido) {
-          setState(() {
-            _ejerciciosSeleccionados.add({
-              'id_ejercicio': ejercicioElegido['id_ejercicio'],
-              'title': ejercicioElegido['title'],
-              'category': ejercicioElegido['category'],
-              'description': ejercicioElegido['description'],
-              'imagePath': ejercicioElegido['imagePath'],
-              'descanso_final': 60,
-              'series': [
-                {'repeticiones': 10, 'peso': 0, 'descanso_entre_series': 30}
-              ]
-            });
-          });
-        },
-      ),
-    );
+  // Agrega una tarjeta "Ejercicio N" vacía: muestra el mini buscador para elegir el ejercicio
+  void _agregarEjercicio() {
+    if (_ejerciciosSeleccionados.any((e) => e['id_ejercicio'] == null)) {
+      _mostrarMensaje('Primero elige el ejercicio que ya está abierto.', exito: false);
+      return;
+    }
+    setState(() {
+      _ejerciciosSeleccionados.add(EjercicioRutinaModel.mapaPantallaVacio());
+    });
   }
 
-  void _guardarRutinaLocal() {
+  // POST /rutinas
+  Future<void> _guardarRutina() async {
+    if (_guardando) return;
+
     if (_nombreRutinaController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ingresa un nombre para la rutina')),
-      );
+      _mostrarMensaje('Ingresa un nombre para la rutina', exito: false);
       return;
     }
 
     if (_ejerciciosSeleccionados.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Agrega al menos un ejercicio')),
-      );
+      _mostrarMensaje('Agrega al menos un ejercicio', exito: false);
       return;
     }
+
+    // Valida lo que escribió el usuario (ejercicio elegido, series y repeticiones)
+    final RutinaNuevaModel rutina;
+    try {
+      rutina = RutinaNuevaModel.diaria(
+        nombre: _nombreRutinaController.text,
+        fecha: _fechaSeleccionada != null ? RutinaNuevaModel.fechaIso(_fechaSeleccionada!) : null,
+        ejercicios: _ejerciciosSeleccionados,
+      );
+    } on FormatException catch (e) {
+      _mostrarMensaje(e.message, exito: false);
+      return;
+    }
+
+    setState(() => _guardando = true);
+    final resultado = await RutinaService.crearRutina(rutina);
+    if (!mounted) return;
+    setState(() => _guardando = false);
+
+    if (resultado['success'] != true) {
+      _mostrarMensaje(resultado['message'].toString(), exito: false);
+      return;
+    }
+    _mostrarMensaje(resultado['message'].toString(), exito: true);
 
     // Estructura de datos idéntica a la que espera el detalle diario
     final Map<String, dynamic> payloadDiario = {
@@ -105,8 +146,8 @@ class _CrearRutinaDiariaScreenState extends State<CrearRutinaDiariaScreen> {
       "ejercicios": _ejerciciosSeleccionados,
     };
 
-    // Navegación hacia la vista de detalle/resumen de la rutina diaria
-    Navigator.push(
+    // Ya quedó guardada: se reemplaza esta pantalla por el resumen para no guardarla dos veces
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (context) => DetalleRutinaDiariaScreen(rutinaData: payloadDiario),
@@ -222,6 +263,7 @@ class _CrearRutinaDiariaScreenState extends State<CrearRutinaDiariaScreen> {
                       );
                       if (picked != null) {
                         setState(() {
+                          _fechaSeleccionada = picked;
                           _fechaController.text = "${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}";
                         });
                       }
@@ -244,7 +286,7 @@ class _CrearRutinaDiariaScreenState extends State<CrearRutinaDiariaScreen> {
                             children: [
                               const SizedBox(height: 10),
                               GestureDetector(
-                                onTap: _abrirBuscadorModal,
+                                onTap: _agregarEjercicio,
                                 child: const Icon(Icons.add_circle_outline, color: AppColors.verdePrimario, size: 50),
                               ),
                               const SizedBox(height: 12),
@@ -260,7 +302,7 @@ class _CrearRutinaDiariaScreenState extends State<CrearRutinaDiariaScreen> {
                                 width: double.infinity,
                                 height: 35,
                                 child: ElevatedButton(
-                                  onPressed: _abrirBuscadorModal,
+                                  onPressed: _agregarEjercicio,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.black,
                                     foregroundColor: Colors.white,
@@ -285,13 +327,36 @@ class _CrearRutinaDiariaScreenState extends State<CrearRutinaDiariaScreen> {
                             return TarjetaEjercicioAgregado(
                               numeroEjercicio: index + 1,
                               ejercicioData: ejercicio,
+                              catalogo: _catalogo,
+                              categorias: _categorias,
+                              cargandoCatalogo: _cargandoCatalogo,
+                              // El usuario eligió un ejercicio en el mini buscador
+                              onSeleccionarEjercicio: (elegido) {
+                                setState(() {
+                                  ejercicio.addAll(elegido.toMapaSeleccion());
+                                  ejercicio['cambiando'] = false;
+                                });
+                              },
+                              onCancelarSeleccion: () {
+                                setState(() {
+                                  if (ejercicio['id_ejercicio'] == null) {
+                                    _ejerciciosSeleccionados.removeAt(index);
+                                  } else {
+                                    ejercicio['cambiando'] = false;
+                                  }
+                                });
+                              },
+                              onEditar: () {
+                                setState(() => ejercicio['cambiando'] = true);
+                              },
                               onAgregarSerie: () {
                                 setState(() {
-                                  (ejercicio['series'] as List).add({
-                                    'repeticiones': 10,
-                                    'peso': 0,
-                                    'descanso_entre_series': 30
-                                  });
+                                  final series = ejercicio['series'] as List;
+                                  // La serie nueva copia el descanso de la anterior
+                                  final descansoAnterior = series.isNotEmpty
+                                      ? int.tryParse((series.last as Map)['descanso_entre_series'].toString())
+                                      : null;
+                                  series.add(SerieRutinaModel.mapaNuevo(descansoEntreSeries: descansoAnterior ?? 30));
                                 });
                               },
                               onEliminarEjercicio: () {
@@ -314,7 +379,7 @@ class _CrearRutinaDiariaScreenState extends State<CrearRutinaDiariaScreen> {
                       width: double.infinity,
                       height: 35,
                       child: ElevatedButton.icon(
-                        onPressed: _abrirBuscadorModal,
+                        onPressed: _agregarEjercicio,
                         icon: const Icon(Icons.add, color: Colors.black, size: 16),
                         label: const Text('AGREGAR EJERCICIO', style: TextStyle(fontFamily: 'Oswald', color: Colors.black, fontWeight: FontWeight.bold, fontSize: 12)),
                         style: ElevatedButton.styleFrom(
@@ -333,14 +398,20 @@ class _CrearRutinaDiariaScreenState extends State<CrearRutinaDiariaScreen> {
                         child: SizedBox(
                           height: 38,
                           child: ElevatedButton(
-                            onPressed: _guardarRutinaLocal,
+                            onPressed: _guardando ? null : _guardarRutina,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.verdePrimario,
                               foregroundColor: Colors.black,
                               elevation: 0,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             ),
-                            child: const Text('GUARDAR RUTINA', style: TextStyle(fontFamily: 'Oswald', fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5)),
+                            child: _guardando
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2),
+                                  )
+                                : const Text('GUARDAR RUTINA', style: TextStyle(fontFamily: 'Oswald', fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5)),
                           ),
                         ),
                       ),

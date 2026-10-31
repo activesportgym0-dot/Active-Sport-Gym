@@ -1,5 +1,7 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
 class ModalCrearNotificacion extends StatefulWidget {
@@ -15,6 +17,44 @@ class _ModalCrearNotificacionState extends State<ModalCrearNotificacion> {
   String tipoSeleccionado = 'stock';
   bool enviarATodos = true;
   String? errorMensaje;
+
+  // Imagen opcional de la notificación (el backend la sube a Cloudinary)
+  XFile? _imagen;
+  Uint8List? _vistaPrevia;
+  final ImagePicker _picker = ImagePicker();
+
+  @override
+  void dispose() {
+    tituloController.dispose();
+    mensajeController.dispose();
+    idUsuarioController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _seleccionarImagen() async {
+    try {
+      final XFile? archivo = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+      if (archivo == null) return;
+      final bytes = await archivo.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _imagen = archivo;
+        _vistaPrevia = bytes;
+        errorMensaje = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => errorMensaje = 'No se pudo seleccionar la imagen: $e');
+    }
+  }
+
+  void _quitarImagen() {
+    setState(() {
+      _imagen = null;
+      _vistaPrevia = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -128,6 +168,62 @@ class _ModalCrearNotificacionState extends State<ModalCrearNotificacion> {
                     ),
                   ),
                 ],
+                const SizedBox(height: 12),
+                Text(
+                  'IMAGEN (Opcional)',
+                  style: EstiloTexto.enlaceNegritaRoboto.copyWith(
+                    color: AppColors.verdePrimario,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (_vistaPrevia == null)
+                  InkWell(
+                    onTap: _seleccionarImagen,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      height: 90,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.grisMedio.withOpacity(0.5)),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.add_photo_alternate_outlined, color: AppColors.verdePrimario, size: 26),
+                          const SizedBox(height: 6),
+                          Text('Agregar imagen', style: EstiloTexto.hintTexto),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.memory(
+                          _vistaPrevia!,
+                          height: 150,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: Row(
+                          children: [
+                            _botonImagen(Icons.edit, _seleccionarImagen),
+                            const SizedBox(width: 6),
+                            _botonImagen(Icons.close, _quitarImagen),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                const SizedBox(height: 8),
               ],
             ),
           ),
@@ -180,6 +276,7 @@ class _ModalCrearNotificacionState extends State<ModalCrearNotificacion> {
                       'mensaje': mensaje,
                       'tipo': tipoSeleccionado,
                       'id_usuario': idUsuario,
+                      'imagen': _imagen, // XFile? (null = sin imagen)
                     });
                     Navigator.pop(context);
                   },
@@ -189,6 +286,20 @@ class _ModalCrearNotificacionState extends State<ModalCrearNotificacion> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _botonImagen(IconData icono, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: const BoxDecoration(
+          color: Colors.black54,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icono, color: AppColors.verdePrimario, size: 18),
       ),
     );
   }

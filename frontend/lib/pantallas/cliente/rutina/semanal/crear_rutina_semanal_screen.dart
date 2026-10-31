@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
-import 'package:frontend/componentes/cliente/rutina/diaria/modal_buscador_ejercicios.dart';
 import 'package:frontend/componentes/cliente/rutina/diaria/tarjeta_ejercicio_agregado.dart';
 import 'package:frontend/componentes/cliente/rutina/diaria/dialog_confirmar_cancelar.dart';
 import 'package:frontend/componentes/cliente/rutina/semanal/selector_dias_semana.dart';
@@ -10,6 +9,10 @@ import 'package:frontend/componentes/cliente/rutina/semanal/bloque_primer_ejerci
 import 'package:frontend/pantallas/cliente/rutina/detalle_plan_semanal_screen.dart';
 import 'package:frontend/pantallas/cliente/rutina/diaria/crear_rutina_diaria_screen.dart';
 import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
+import 'package:frontend/models/ejercicio_catalogo_model.dart';
+import 'package:frontend/models/rutina_model.dart';
+import 'package:frontend/services/ejercicio_service.dart';
+import 'package:frontend/services/rutina_service.dart';
 
 class CrearRutinaSemanalScreen extends StatefulWidget {
   const CrearRutinaSemanalScreen({super.key});
@@ -46,27 +49,49 @@ class _CrearRutinaSemanalScreenState extends State<CrearRutinaSemanalScreen> {
     'D': 'DOMINGO',
   };
 
-  final List<Map<String, dynamic>> _catalogoGlobalAdmin = [
-    {
-      'id_ejercicio': 1,
-      'title': 'Remo horizontal con mancuernas',
-      'category': 'Espalda',
-      'description': 'Mantén la espalda recta y trata de llevar los codos al techo.',
-      'imagePath': 'assets/images/3.jpg',
-    },
-    {
-      'id_ejercicio': 2,
-      'title': 'Press militar',
-      'category': 'Espalda',
-      'description': 'Ejercicio fundamental para el desarrollo del hombro y espalda alta.',
-      'imagePath': 'assets/images/4.jpg',
-    },
-  ];
+  // Catálogo real de ejercicios (GET /ejercicios) y sus categorías (GET /categorias)
+  List<EjercicioCatalogoModel> _catalogo = [];
+  List<String> _categorias = [];
+  bool _cargandoCatalogo = true;
+  bool _guardando = false;
 
   @override
   void initState() {
     super.initState();
     _actualizarControladorDia();
+    _cargarCatalogo();
+  }
+
+  Future<void> _cargarCatalogo() async {
+    final ejerciciosRaw = await EjercicioService.obtenerEjercicios();
+    final categoriasRaw = await EjercicioService.obtenerCategorias();
+    if (!mounted) return;
+
+    setState(() {
+      _catalogo = ejerciciosRaw
+          .whereType<Map>()
+          .map((e) => EjercicioCatalogoModel.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+      _categorias = categoriasRaw
+          .whereType<Map>()
+          .map((c) => (c['nombre'] ?? '').toString())
+          .where((n) => n.isNotEmpty)
+          .toList();
+      _cargandoCatalogo = false;
+    });
+
+    if (_catalogo.isEmpty) {
+      _mostrarMensaje('No se pudo cargar el catálogo de ejercicios.', exito: false);
+    }
+  }
+
+  void _mostrarMensaje(String mensaje, {required bool exito}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: exito ? Colors.green : Colors.redAccent,
+      ),
+    );
   }
 
   void _actualizarControladorDia() {
@@ -95,40 +120,76 @@ class _CrearRutinaSemanalScreenState extends State<CrearRutinaSemanalScreen> {
     }
   }
 
-  void _abrirBuscadorModal() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => ModalBuscadorEjercicios(
-        catalogoEjercicios: _catalogoGlobalAdmin,
-        onEjercicioSeleccionado: (ejercicioElegido) {
-          setState(() {
-            final listaEjercicios = _estructuraSemanal[_diaSeleccionado]!['ejercicios'] as List;
-            listaEjercicios.add({
-              'id_ejercicio': ejercicioElegido['id_ejercicio'],
-              'title': ejercicioElegido['title'],
-              'category': ejercicioElegido['category'],
-              'description': ejercicioElegido['description'],
-              'imagePath': ejercicioElegido['imagePath'],
-              'descanso_final': 60,
-              'series': [
-                {'repeticiones': 10, 'peso': 0, 'descanso_entre_series': 30}
-              ]
-            });
-          });
-        },
-      ),
-    );
-  }
-
-  void _guardarPlanSemanalBackend() {
-    if (_nombrePlanController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('El nombre del plan semanal es obligatorio')),
-      );
+  // Agrega una tarjeta "Ejercicio N" vacía al día seleccionado: muestra el mini buscador
+  void _agregarEjercicio() {
+    final listaEjercicios = _estructuraSemanal[_diaSeleccionado]!['ejercicios'] as List;
+    if (listaEjercicios.any((e) => e['id_ejercicio'] == null)) {
+      _mostrarMensaje('Primero elige el ejercicio que ya está abierto.', exito: false);
       return;
     }
+    setState(() {
+      listaEjercicios.add(EjercicioRutinaModel.mapaPantallaVacio());
+    });
+  }
+
+  // POST /rutinas (tipo semanal). Solo se envían los días que tienen ejercicios.
+  Future<void> _guardarPlanSemanalBackend() async {
+    if (_guardando) return;
+
+    if (_nombrePlanController.text.trim().isEmpty) {
+      _mostrarMensaje('El nombre del plan semanal es obligatorio', exito: false);
+      return;
+    }
+
+    final RutinaNuevaModel rutina;
+    try {
+      final dias = <DiaRutinaModel>[];
+      for (final entrada in _estructuraSemanal.entries) {
+        final ejercicios = entrada.value['ejercicios'] as List;
+        if (ejercicios.isEmpty) continue;
+
+        final nombreDia = (entrada.value['nombre_rutina'] as String).trim();
+        final etiquetaDia = _nombresDiasCompletos[entrada.key] ?? entrada.key;
+        if (nombreDia.isEmpty) {
+          throw FormatException('Escribe el nombre de la rutina del $etiquetaDia.');
+        }
+
+        final List<EjercicioRutinaModel> lista;
+        try {
+          lista = EjercicioRutinaModel.listaDesdePantalla(ejercicios);
+        } on FormatException catch (e) {
+          throw FormatException('$etiquetaDia: ${e.message}');
+        }
+
+        dias.add(
+          DiaRutinaModel(
+            diaSemana: etiquetaDia.toLowerCase(), // el backend espera "lunes", "miércoles"...
+            nombreDia: nombreDia,
+            ejercicios: lista,
+          ),
+        );
+      }
+
+      rutina = RutinaNuevaModel.semanal(
+        nombre: _nombrePlanController.text,
+        fecha: _fechaController.text, // ya está en formato AAAA-MM-DD
+        dias: dias,
+      );
+    } on FormatException catch (e) {
+      _mostrarMensaje(e.message, exito: false);
+      return;
+    }
+
+    setState(() => _guardando = true);
+    final resultado = await RutinaService.crearRutina(rutina);
+    if (!mounted) return;
+    setState(() => _guardando = false);
+
+    if (resultado['success'] != true) {
+      _mostrarMensaje(resultado['message'].toString(), exito: false);
+      return;
+    }
+    _mostrarMensaje(resultado['message'].toString(), exito: true);
 
     final Map<String, dynamic> payloadPlanSemanal = {
       "nombre_plan": _nombrePlanController.text.trim(),
@@ -148,8 +209,8 @@ class _CrearRutinaSemanalScreenState extends State<CrearRutinaSemanalScreen> {
           ))
     };
 
-    // Navegación corregida al resumen del plan
-    Navigator.push(
+    // Ya quedó guardado: se reemplaza esta pantalla por el resumen para no guardarlo dos veces
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (context) => DetallePlanSemanalScreen(planData: payloadPlanSemanal),
@@ -312,7 +373,7 @@ class _CrearRutinaSemanalScreenState extends State<CrearRutinaSemanalScreen> {
                   const SizedBox(height: 20),
 
                   ejerciciosDelDia.isEmpty
-                      ? BloquePrimerEjercicio(onAgregar: _abrirBuscadorModal)
+                      ? BloquePrimerEjercicio(onAgregar: _agregarEjercicio)
                       : ListView.builder(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
@@ -322,13 +383,36 @@ class _CrearRutinaSemanalScreenState extends State<CrearRutinaSemanalScreen> {
                             return TarjetaEjercicioAgregado(
                               numeroEjercicio: index + 1,
                               ejercicioData: ejercicio,
+                              catalogo: _catalogo,
+                              categorias: _categorias,
+                              cargandoCatalogo: _cargandoCatalogo,
+                              // El usuario eligió un ejercicio en el mini buscador
+                              onSeleccionarEjercicio: (elegido) {
+                                setState(() {
+                                  ejercicio.addAll(elegido.toMapaSeleccion());
+                                  ejercicio['cambiando'] = false;
+                                });
+                              },
+                              onCancelarSeleccion: () {
+                                setState(() {
+                                  if (ejercicio['id_ejercicio'] == null) {
+                                    ejerciciosDelDia.removeAt(index);
+                                  } else {
+                                    ejercicio['cambiando'] = false;
+                                  }
+                                });
+                              },
+                              onEditar: () {
+                                setState(() => ejercicio['cambiando'] = true);
+                              },
                               onAgregarSerie: () {
                                 setState(() {
-                                  (ejercicio['series'] as List).add({
-                                    'repeticiones': 10,
-                                    'peso': 0,
-                                    'descanso_entre_series': 30
-                                  });
+                                  final series = ejercicio['series'] as List;
+                                  // La serie nueva copia el descanso de la anterior
+                                  final descansoAnterior = series.isNotEmpty
+                                      ? int.tryParse((series.last as Map)['descanso_entre_series'].toString())
+                                      : null;
+                                  series.add(SerieRutinaModel.mapaNuevo(descansoEntreSeries: descansoAnterior ?? 30));
                                 });
                               },
                               onEliminarEjercicio: () {
@@ -351,7 +435,7 @@ class _CrearRutinaSemanalScreenState extends State<CrearRutinaSemanalScreen> {
                       width: double.infinity,
                       height: 35,
                       child: ElevatedButton.icon(
-                        onPressed: _abrirBuscadorModal,
+                        onPressed: _agregarEjercicio,
                         icon: const Icon(Icons.add, color: Colors.black, size: 16),
                         label: const Text('AGREGAR EJERCICIO', style: TextStyle(fontFamily: 'Oswald', color: Colors.black, fontWeight: FontWeight.bold, fontSize: 12)),
                         style: ElevatedButton.styleFrom(
@@ -370,14 +454,20 @@ class _CrearRutinaSemanalScreenState extends State<CrearRutinaSemanalScreen> {
                         child: SizedBox(
                           height: 38,
                           child: ElevatedButton(
-                            onPressed: _guardarPlanSemanalBackend,
+                            onPressed: _guardando ? null : _guardarPlanSemanalBackend,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.verdePrimario,
                               foregroundColor: Colors.black,
                               elevation: 0,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             ),
-                            child: const Text('GUARDAR PLAN', style: TextStyle(fontFamily: 'Oswald', fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5)),
+                            child: _guardando
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2),
+                                  )
+                                : const Text('GUARDAR PLAN', style: TextStyle(fontFamily: 'Oswald', fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5)),
                           ),
                         ),
                       ),

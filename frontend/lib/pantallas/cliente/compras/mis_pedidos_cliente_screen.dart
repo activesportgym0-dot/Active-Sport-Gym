@@ -3,57 +3,63 @@ import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
 import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
-
+import 'package:frontend/models/pedido_model.dart';
+import 'package:frontend/services/pedido_service.dart';
 class MisPedidosClienteScreen extends StatefulWidget {
-  final List<Map<String, dynamic>>? pedidosIniciales;
-
-  const MisPedidosClienteScreen({
-    super.key,
-    this.pedidosIniciales,
-  });
-
+  const MisPedidosClienteScreen({super.key});
   @override
   State<MisPedidosClienteScreen> createState() => _MisPedidosClienteScreenState();
 }
-
 class _MisPedidosClienteScreenState extends State<MisPedidosClienteScreen> {
-  // Lista con la estructura exacta que retorna obtenerMisPedidos BD
-  late List<Map<String, dynamic>> _misPedidos;
+  // Pedidos reales del cliente que llegan de GET /pedidos/mis-pedidos
+  List<PedidoModel> _misPedidos = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _misPedidos = widget.pedidosIniciales ??
-        [
-          {
-            'id_pedido': 1001,
-            'total': 115000,
-            'estado': 'Pendiente',
-            'created_at': '2026-10-16 08:30',
-            'detalle_pedidos': [
-              {
-                'nombre': 'Army BCAA',
-                'cantidad': 1,
-                'precio_unitario': 115000,
-                'imagen_url': 'assets/images/3.jpg'
-              }
-            ]
-          },
-          {
-            'id_pedido': 980,
-            'total': 230000,
-            'estado': 'Completado',
-            'created_at': '2026-09-28 14:15',
-            'detalle_pedidos': [
-              {
-                'nombre': 'Best Protein',
-                'cantidad': 2,
-                'precio_unitario': 115000,
-                'imagen_url': 'assets/images/4.jpg'
-              }
-            ]
-          }
-        ];
+    _cargarPedidos();
+  }
+
+  void _mostrarMensaje(String mensaje, {required bool exito}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: exito ? Colors.green : Colors.redAccent,
+      ),
+    );
+  }
+
+  Future<void> _cargarPedidos() async {
+    if (mounted) setState(() => _isLoading = true);
+    try {
+      final pedidos = await PedidoService.obtenerMisPedidos();
+      if (!mounted) return;
+      setState(() {
+        _misPedidos = pedidos;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _mostrarMensaje(
+        'Error al cargar tus pedidos: ${e.toString().replaceFirst('Exception: ', '')}',
+        exito: false,
+      );
+    }
+  }
+
+  // PUT /pedidos/mis-pedidos/:id/cancelar (el backend devuelve las unidades al stock)
+  Future<void> _cancelarPedido(int idPedido) async {
+    final resultado = await PedidoService.cancelarMiPedido(idPedido);
+    if (!mounted) return;
+
+    final exito = resultado['success'] == true;
+    _mostrarMensaje(
+      exito ? 'Pedido #$idPedido cancelado exitosamente.' : resultado['message'].toString(),
+      exito: exito,
+    );
+    await _cargarPedidos();
   }
 
   Color _obtenerColorEstado(String estado) {
@@ -70,8 +76,7 @@ class _MisPedidosClienteScreenState extends State<MisPedidosClienteScreen> {
         return Colors.grey;
     }
   }
-
-  void _confirmarCancelacion(int idPedido, int index) {
+  void _confirmarCancelacion(int idPedido) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -93,16 +98,8 @@ class _MisPedidosClienteScreenState extends State<MisPedidosClienteScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () {
-              setState(() {
-                _misPedidos[index]['estado'] = 'Cancelado';
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Pedido #$idPedido cancelado exitosamente.'),
-                  backgroundColor: Colors.black87,
-                ),
-              );
+              Navigator.pop(context); // Cierra el diálogo
+              _cancelarPedido(idPedido);
             },
             child: const Text('SÍ, CANCELAR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
@@ -110,13 +107,11 @@ class _MisPedidosClienteScreenState extends State<MisPedidosClienteScreen> {
       ),
     );
   }
-
   String _formatearPrecio(num valor) {
     String precioStr = valor.toInt().toString();
     RegExp reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
     return '\$${precioStr.replaceAllMapped(reg, (Match m) => '${m[1]}.')}';
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -135,7 +130,14 @@ class _MisPedidosClienteScreenState extends State<MisPedidosClienteScreen> {
       ),
       body: FondoApp(
         child: SafeArea(
-          child: _misPedidos.isEmpty
+          child: _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.verdePrimario),
+                )
+              : RefreshIndicator(
+                  color: AppColors.verdePrimario,
+                  onRefresh: _cargarPedidos,
+                  child: _misPedidos.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -150,15 +152,15 @@ class _MisPedidosClienteScreenState extends State<MisPedidosClienteScreen> {
                   ),
                 )
               : ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.all(16),
                   itemCount: _misPedidos.length,
                   itemBuilder: (context, index) {
-                    final p = _misPedidos[index];
-                    final int idPedido = p['id_pedido'];
-                    final String estado = p['estado'];
+                    final PedidoModel p = _misPedidos[index];
+                    final int idPedido = p.idPedido;
+                    final String estado = p.estado;
                     final Color colorEstado = _obtenerColorEstado(estado);
-                    final List<dynamic> detalles = p['detalle_pedidos'] ?? [];
-
+                    final List<DetallePedidoModel> detalles = p.detalles;
                     return Container(
                       margin: const EdgeInsets.only(bottom: 14),
                       padding: const EdgeInsets.all(14),
@@ -199,11 +201,10 @@ class _MisPedidosClienteScreenState extends State<MisPedidosClienteScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Fecha: ${p['created_at']}',
+                            'Fecha: ${p.fechaFormateada}',
                             style: TextStyle(color: Colors.grey[400], fontSize: 11),
                           ),
                           const Divider(color: Colors.white12, height: 16),
-
                           // Productos incluidos en la orden
                           ...detalles.map((d) {
                             return Padding(
@@ -212,20 +213,18 @@ class _MisPedidosClienteScreenState extends State<MisPedidosClienteScreen> {
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    '• ${d['nombre']} x${d['cantidad']}',
+                                    '• ${d.nombreProducto} x${d.cantidad}',
                                     style: const TextStyle(color: Colors.white70, fontSize: 13),
                                   ),
                                   Text(
-                                    _formatearPrecio((d['precio_unitario'] ?? 0) * (d['cantidad'] ?? 1)),
+                                    _formatearPrecio(d.subtotal),
                                     style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
                                   ),
                                 ],
                               ),
                             );
                           }),
-
                           const Divider(color: Colors.white12, height: 16),
-
                           // Pie de Tarjeta: Total y Botón Cancelar (si está Pendiente)
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -235,7 +234,7 @@ class _MisPedidosClienteScreenState extends State<MisPedidosClienteScreen> {
                                 children: [
                                   Text('TOTAL PAGADO', style: TextStyle(color: Colors.grey[400], fontSize: 10)),
                                   Text(
-                                    _formatearPrecio(p['total']),
+                                    _formatearPrecio(p.total),
                                     style: const TextStyle(
                                       fontFamily: 'Teko',
                                       color: AppColors.verdePrimario,
@@ -245,7 +244,6 @@ class _MisPedidosClienteScreenState extends State<MisPedidosClienteScreen> {
                                   ),
                                 ],
                               ),
-
                               // Botón condicional según controlador: Solo cancela si es "Pendiente"
                               if (estado == 'Pendiente')
                                 OutlinedButton(
@@ -253,7 +251,7 @@ class _MisPedidosClienteScreenState extends State<MisPedidosClienteScreen> {
                                     side: const BorderSide(color: Colors.redAccent),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                   ),
-                                  onPressed: () => _confirmarCancelacion(idPedido, index),
+                                  onPressed: () => _confirmarCancelacion(idPedido),
                                   child: const Text(
                                     'CANCELAR',
                                     style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold),
@@ -265,6 +263,7 @@ class _MisPedidosClienteScreenState extends State<MisPedidosClienteScreen> {
                       ),
                     );
                   },
+                ),
                 ),
         ),
       ),

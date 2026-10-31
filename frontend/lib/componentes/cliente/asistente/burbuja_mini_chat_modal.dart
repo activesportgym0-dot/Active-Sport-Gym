@@ -1,42 +1,27 @@
-
 import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
-import 'package:frontend/pantallas/cliente/burbuja_mensaje_chat.dart';
+import 'package:frontend/pantallas/burbuja_mensaje_chat.dart';
+import 'package:frontend/services/chat_service.dart';
 
 class BurbujaMiniChatModal extends StatefulWidget {
   const BurbujaMiniChatModal({super.key});
 
   @override
-  State<BurbujaMiniChatModal> createState() =>
-      _BurbujaMiniChatModalState();
+  State<BurbujaMiniChatModal> createState() => _BurbujaMiniChatModalState();
 }
 
-class _BurbujaMiniChatModalState
-    extends State<BurbujaMiniChatModal> {
+class _BurbujaMiniChatModalState extends State<BurbujaMiniChatModal> {
   static const double _tamanoBurbuja = 56;
   static const double _margen = 10;
-
   double _posicionX = 16;
   double _posicionY = 100;
-
   bool _chatAbierto = false;
+  bool _cargando = false;
+  String? _sesionId;
 
-  final TextEditingController _mensajeController =
-      TextEditingController();
-
-  final List<Map<String, dynamic>> _mensajes = [
-    {
-      'texto': '¡Hola! ¿En qué te puedo ayudar sobre esta pantalla?',
-      'hora': '10:30 AM',
-      'esUsuario': false,
-    },
-    {
-      'texto': 'Quiero una rutina rápida',
-      'hora': '10:30 AM',
-      'esUsuario': true,
-    },
-  ];
+  final TextEditingController _mensajeController = TextEditingController();
+  final List<Map<String, dynamic>> _mensajes = [];
 
   @override
   void dispose() {
@@ -50,10 +35,9 @@ class _BurbujaMiniChatModalState
     });
   }
 
-  void _enviarMensaje() {
+  void _enviarMensajeAPI() async {
     final texto = _mensajeController.text.trim();
-
-    if (texto.isEmpty) return;
+    if (texto.isEmpty || _cargando) return;
 
     setState(() {
       _mensajes.add({
@@ -61,12 +45,35 @@ class _BurbujaMiniChatModalState
         'hora': TimeOfDay.now().format(context),
         'esUsuario': true,
       });
-
+      _cargando = true;
       _mensajeController.clear();
     });
 
-    // Solo se agrega el mensaje a la interfaz.
-    // Las respuestas reales de la IA se conectarán después.
+    try {
+      final res = await ChatService.enviarMensajeCliente(
+        mensaje: texto,
+        sesionId: _sesionId,
+      );
+
+      setState(() {
+        _sesionId = res.sesionId;
+        _mensajes.add({
+          'texto': res.respuesta,
+          'hora': TimeOfDay.now().format(context),
+          'esUsuario': false,
+        });
+        _cargando = false;
+      });
+    } catch (e) {
+      setState(() {
+        _mensajes.add({
+          'texto': 'Error de conexión: $e',
+          'hora': TimeOfDay.now().format(context),
+          'esUsuario': false,
+        });
+        _cargando = false;
+      });
+    }
   }
 
   @override
@@ -75,41 +82,20 @@ class _BurbujaMiniChatModalState
       builder: (context, constraints) {
         final ancho = constraints.maxWidth;
         final alto = constraints.maxHeight;
-
         const anchoChat = 320.0;
         const altoChat = 390.0;
-
-        final maxX =
-            (ancho - _tamanoBurbuja - _margen)
-                .clamp(_margen, ancho)
-                .toDouble();
-
-        final maxY =
-            (alto - _tamanoBurbuja - _margen)
-                .clamp(_margen, alto)
-                .toDouble();
-
+        final maxX = (ancho - _tamanoBurbuja - _margen).clamp(_margen, ancho).toDouble();
+        final maxY = (alto - _tamanoBurbuja - _margen).clamp(_margen, alto).toDouble();
         _posicionX = _posicionX.clamp(_margen, maxX).toDouble();
         _posicionY = _posicionY.clamp(_margen, maxY).toDouble();
+        final anchoVentana = ancho < anchoChat + 2 * _margen ? ancho - 2 * _margen : anchoChat;
+        final altoVentana = alto < altoChat + 2 * _margen ? alto - 2 * _margen : altoChat;
 
-        final anchoVentana = ancho < anchoChat + 2 * _margen
-            ? ancho - 2 * _margen
-            : anchoChat;
-
-        final altoVentana = alto < altoChat + 2 * _margen
-            ? alto - 2 * _margen
-            : altoChat;
-
-        // La burbuja usa distancias desde la derecha y desde abajo.
-        // La ventana se coloca cerca de ella y dentro de la pantalla.
         final izquierdaBurbuja = ancho - _posicionX - _tamanoBurbuja;
         final arribaBurbuja = alto - _posicionY - _tamanoBurbuja;
-
-        final izquierdaChat = (izquierdaBurbuja + _tamanoBurbuja -
-                anchoVentana)
+        final izquierdaChat = (izquierdaBurbuja + _tamanoBurbuja - anchoVentana)
             .clamp(_margen, ancho - anchoVentana - _margen)
             .toDouble();
-
         final arribaChat = (arribaBurbuja - altoVentana - 12)
             .clamp(_margen, alto - altoVentana - _margen)
             .toDouble();
@@ -128,14 +114,10 @@ class _BurbujaMiniChatModalState
                     decoration: BoxDecoration(
                       color: AppColors.fondoNegro,
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: AppColors.verdePrimario,
-                        width: 1.5,
-                      ),
+                      border: Border.all(color: AppColors.verdePrimario, width: 1.5),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.verdePrimario
-                              .withOpacity(0.16),
+                          color: AppColors.verdePrimario.withOpacity(0.16),
                           blurRadius: 16,
                           spreadRadius: 1,
                         ),
@@ -144,81 +126,48 @@ class _BurbujaMiniChatModalState
                     clipBehavior: Clip.antiAlias,
                     child: Column(
                       children: [
-                        // Encabezado
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           color: AppColors.grisOscuro,
                           child: Row(
                             children: [
                               ClipOval(
-                                child: Image.asset(
-                                  'assets/images/ia.png',
-                                  width: 30,
-                                  height: 30,
-                                  fit: BoxFit.cover,
-                                ),
+                                child: Image.asset('assets/images/ia.png', width: 30, height: 30, fit: BoxFit.cover),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
-                                child: Text(
-                                  'ASISTENTE IA',
-                                  style: EstiloTexto
-                                      .tekoSubtituloSeccion
-                                      .copyWith(fontSize: 17),
-                                ),
+                                child: Text('ASISTENTE IA', style: EstiloTexto.tekoSubtituloSeccion.copyWith(fontSize: 17)),
                               ),
                               IconButton(
-                                tooltip: 'Ocultar chat',
                                 padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(
-                                  minWidth: 36,
-                                  minHeight: 36,
-                                ),
+                                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                                 onPressed: _alternarChat,
-                                icon: const Icon(
-                                  Icons.close,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
+                                icon: const Icon(Icons.close, color: Colors.white, size: 20),
                               ),
                             ],
                           ),
                         ),
-
-                        // Conversación
                         Expanded(
                           child: ListView.builder(
                             padding: const EdgeInsets.all(10),
                             itemCount: _mensajes.length,
                             itemBuilder: (context, index) {
                               final mensaje = _mensajes[index];
-
                               return BurbujaMensajeChat(
                                 texto: mensaje['texto'] as String,
                                 hora: mensaje['hora'] as String,
-                                esUsuario:
-                                    mensaje['esUsuario'] as bool,
+                                esUsuario: mensaje['esUsuario'] as bool,
                               );
                             },
                           ),
                         ),
-
-                        // Campo de mensaje
+                        if (_cargando)
+                          const LinearProgressIndicator(color: AppColors.verdePrimario, backgroundColor: Colors.black),
                         Container(
-                          padding: const EdgeInsets.fromLTRB(
-                            8, 8, 8, 8,
-                          ),
+                          padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
                           decoration: BoxDecoration(
                             color: Colors.black,
-                            border: Border(
-                              top: BorderSide(
-                                color: AppColors.verdePrimario
-                                    .withOpacity(0.3),
-                              ),
-                            ),
+                            border: Border(top: BorderSide(color: AppColors.verdePrimario.withOpacity(0.3))),
                           ),
                           child: SafeArea(
                             top: false,
@@ -229,47 +178,23 @@ class _BurbujaMiniChatModalState
                                     controller: _mensajeController,
                                     minLines: 1,
                                     maxLines: 3,
-                                    textInputAction:
-                                        TextInputAction.send,
-                                    onSubmitted: (_) =>
-                                        _enviarMensaje(),
-                                    style: const TextStyle(
-                                      fontFamily: 'RobotoCondensed',
-                                      color: Colors.white,
-                                      fontSize: 13,
-                                    ),
+                                    textInputAction: TextInputAction.send,
+                                    onSubmitted: (_) => _enviarMensajeAPI(),
+                                    style: const TextStyle(fontFamily: 'RobotoCondensed', color: Colors.white, fontSize: 13),
                                     decoration: InputDecoration(
-                                      hintText:
-                                          'Escribe tu mensaje...',
-                                      hintStyle: TextStyle(
-                                        color: Colors.grey
-                                            .withOpacity(0.7),
-                                        fontSize: 12,
-                                      ),
+                                      hintText: 'Escribe tu mensaje...',
+                                      hintStyle: TextStyle(color: Colors.grey.withOpacity(0.7), fontSize: 12),
                                       filled: true,
                                       fillColor: AppColors.grisOscuro,
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 10,
-                                      ),
-                                      border: OutlineInputBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(10),
-                                        borderSide: BorderSide.none,
-                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
                                     ),
                                   ),
                                 ),
                                 const SizedBox(width: 6),
                                 IconButton(
-                                  tooltip: 'Enviar mensaje',
-                                  onPressed: _enviarMensaje,
-                                  icon: const Icon(
-                                    Icons.send,
-                                    color: AppColors.verdePrimario,
-                                    size: 21,
-                                  ),
+                                  onPressed: _enviarMensajeAPI,
+                                  icon: const Icon(Icons.send, color: AppColors.verdePrimario, size: 21),
                                 ),
                               ],
                             ),
@@ -280,21 +205,14 @@ class _BurbujaMiniChatModalState
                   ),
                 ),
               ),
-
-            // Burbuja flotante que se puede arrastrar
             Positioned(
               right: _posicionX,
               bottom: _posicionY,
               child: GestureDetector(
                 onPanUpdate: (details) {
                   setState(() {
-                    _posicionX = (_posicionX - details.delta.dx)
-                        .clamp(_margen, maxX)
-                        .toDouble();
-
-                    _posicionY = (_posicionY - details.delta.dy)
-                        .clamp(_margen, maxY)
-                        .toDouble();
+                    _posicionX = (_posicionX - details.delta.dx).clamp(_margen, maxX).toDouble();
+                    _posicionY = (_posicionY - details.delta.dy).clamp(_margen, maxY).toDouble();
                   });
                 },
                 onTap: _alternarChat,
@@ -304,24 +222,17 @@ class _BurbujaMiniChatModalState
                   decoration: BoxDecoration(
                     color: AppColors.grisOscuro,
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.verdePrimario,
-                      width: 2.5,
-                    ),
+                    border: Border.all(color: AppColors.verdePrimario, width: 2.5),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.verdePrimario
-                            .withOpacity(0.4),
+                        color: AppColors.verdePrimario.withOpacity(0.4),
                         blurRadius: 10,
                         spreadRadius: 2,
                       ),
                     ],
                   ),
                   child: ClipOval(
-                    child: Image.asset(
-                      'assets/images/ia.png',
-                      fit: BoxFit.cover,
-                    ),
+                    child: Image.asset('assets/images/ia.png', fit: BoxFit.cover),
                   ),
                 ),
               ),

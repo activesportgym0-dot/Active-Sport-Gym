@@ -1,15 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
-
 class TarjetaProductoCliente extends StatelessWidget {
   final Map<String, dynamic> producto;
   final VoidCallback onVerMas;
-
   const TarjetaProductoCliente({
     super.key,
     required this.producto,
     required this.onVerMas,
   });
+  // La imagen es una URL de Cloudinary (o un asset local, si algún producto lo trae)
+  Widget _construirImagen(String ruta) {
+    const iconoVacio = Icon(Icons.image, color: Colors.white54, size: 40);
+    if (ruta.isEmpty) return const SizedBox(width: 60, height: 60, child: Center(child: iconoVacio));
+
+    if (ruta.startsWith('assets/')) {
+      return Image.asset(
+        ruta,
+        width: 60,
+        height: 60,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => iconoVacio,
+      );
+    }
+    return Image.network(
+      ruta,
+      width: 60,
+      height: 60,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) =>
+          const SizedBox(width: 60, height: 60, child: Center(child: iconoVacio)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,13 +46,7 @@ class TarjetaProductoCliente extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: Image.asset(
-              producto['imagen'],
-              width: 60,
-              height: 60,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => const Icon(Icons.image, color: Colors.white54, size: 40),
-            ),
+            child: _construirImagen((producto['imagen'] ?? '').toString()),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -50,7 +65,12 @@ class TarjetaProductoCliente extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   producto['stock'],
-                  style: TextStyle(fontFamily: 'Roboto', color: AppColors.verdePrimario, fontSize: 11),
+                  style: TextStyle(
+                    fontFamily: 'Roboto',
+                    // Agotado se muestra en rojo; con unidades disponibles, en verde
+                    color: producto['stock_int'] == 0 ? Colors.redAccent : AppColors.verdePrimario,
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),

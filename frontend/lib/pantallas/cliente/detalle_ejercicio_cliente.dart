@@ -36,7 +36,18 @@ class _DetalleEjercicioClienteScreenState
         child: Icon(Icons.fitness_center, color: Colors.white54, size: 60),
       );
     }
-    if (ruta.startsWith('assets/')) {
+
+    if (ruta.startsWith('http://') || ruta.startsWith('https://')) {
+      return Image.network(
+        ruta,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (c, e, s) => const Center(
+          child: Icon(Icons.fitness_center, color: Colors.white54, size: 60),
+        ),
+      );
+    } else if (ruta.startsWith('assets/')) {
       return Image.asset(
         ruta,
         fit: BoxFit.cover,
@@ -47,14 +58,8 @@ class _DetalleEjercicioClienteScreenState
         ),
       );
     } else {
-      return Image.network(
-        ruta,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (c, e, s) => const Center(
-          child: Icon(Icons.fitness_center, color: Colors.white54, size: 60),
-        ),
+      return const Center(
+        child: Icon(Icons.fitness_center, color: Colors.white54, size: 60),
       );
     }
   }
@@ -62,20 +67,19 @@ class _DetalleEjercicioClienteScreenState
   @override
   Widget build(BuildContext context) {
     final String nombre = widget.ejercicio['nombre'] ?? 'EJERCICIO';
-    final String imagen =
-        widget.ejercicio['imagen'] ?? 'assets/images/3.jpg';
+    final String imagen = widget.ejercicio['imagen'] ?? '';
     final String gifUrl = widget.ejercicio['gif_url'] ?? '';
     final String maquina =
         widget.ejercicio['maquina'] ?? 'Peso libre / Sin máquina específica';
 
-    // Extracción de categorías
+    // Extracción limpia de categorías provenientes del Backend
     List<dynamic> relacionesCategorias =
         widget.ejercicio['ejercicio_categoria'] ?? [];
     List<String> nombresCategorias = [];
     for (var rel in relacionesCategorias) {
       if (rel['categoria_ejercicios'] != null &&
           rel['categoria_ejercicios']['nombre'] != null) {
-        nombresCategorias.add(rel['categoria_ejercicios']['nombre']);
+        nombresCategorias.add(rel['categoria_ejercicios']['nombre'].toString());
       }
     }
     final String categoriasTexto = nombresCategorias.isNotEmpty
@@ -96,9 +100,13 @@ class _DetalleEjercicioClienteScreenState
         'Ejecuta el movimiento de forma fluida y controlada.';
 
     final List<Map<String, String>> listaMidia = [
-      {'tipo': 'Imagen Principal', 'url': imagen},
+      if (imagen.isNotEmpty) {'tipo': 'Imagen Principal', 'url': imagen},
       if (gifUrl.isNotEmpty) {'tipo': 'Demostración (Video/GIF)', 'url': gifUrl},
     ];
+
+    if (listaMidia.isEmpty) {
+      listaMidia.add({'tipo': 'Sin imagen', 'url': ''});
+    }
 
     return Scaffold(
       backgroundColor: AppColors.fondoNegro,
@@ -125,7 +133,7 @@ class _DetalleEjercicioClienteScreenState
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    // 1. Visor de Imagen / Demostración en Video con Desplazamiento
+                    // 1. Visor de Imagen / Demostración con Desplazamiento
                     Stack(
                       alignment: Alignment.center,
                       children: [
@@ -155,7 +163,6 @@ class _DetalleEjercicioClienteScreenState
                             ),
                           ),
                         ),
-
                         // Flecha Izquierda
                         if (_paginaActual > 0)
                           Positioned(
@@ -176,7 +183,6 @@ class _DetalleEjercicioClienteScreenState
                               ),
                             ),
                           ),
-
                         // Flecha Derecha
                         if (_paginaActual < listaMidia.length - 1)
                           Positioned(
@@ -197,7 +203,6 @@ class _DetalleEjercicioClienteScreenState
                               ),
                             ),
                           ),
-
                         // Etiqueta indicadora del tipo de media
                         Positioned(
                           bottom: 10,
@@ -208,8 +213,7 @@ class _DetalleEjercicioClienteScreenState
                               color: Colors.black.withOpacity(0.7),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                  color:
-                                      AppColors.verdePrimario.withOpacity(0.5)),
+                                  color: AppColors.verdePrimario.withOpacity(0.5)),
                             ),
                             child: Text(
                               listaMidia[_paginaActual]['tipo']!,
@@ -224,10 +228,9 @@ class _DetalleEjercicioClienteScreenState
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 20),
 
-                    // 2. Categorías y Máquina requerida estilo Badges
+                    // 2. Categorías y Máquina requerida
                     Row(
                       children: [
                         Expanded(
@@ -301,7 +304,6 @@ class _DetalleEjercicioClienteScreenState
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 16),
 
                     // 3. Secciones Informativas
@@ -310,31 +312,26 @@ class _DetalleEjercicioClienteScreenState
                       contenido: descripcion,
                       icono: Icons.home_repair_service_outlined,
                     ),
-
                     DetalleSeccionCard(
                       titulo: '¿Cómo se hace?',
                       contenido: comoSeHace,
                       icono: Icons.help_outline,
                     ),
-
                     DetalleSeccionCard(
                       titulo: 'Beneficios',
                       contenido: beneficios,
                       icono: Icons.star_border,
                     ),
-
                     DetalleSeccionCard(
                       titulo: 'Rango de Movimiento Ideal',
                       contenido: rangoMovimiento,
                       icono: Icons.swap_vert,
                     ),
-
                     DetalleSeccionCard(
                       titulo: 'El Papel de la Respiración',
                       contenido: respiracion,
                       icono: Icons.air,
                     ),
-
                     DetalleSeccionCard(
                       titulo: 'Ritmo de Movimiento',
                       contenido: ritmo,
@@ -344,7 +341,7 @@ class _DetalleEjercicioClienteScreenState
                 ),
               ),
 
-              // 4. Botón Inferior
+              // 4. Botón Inferior para crear rutina
               Container(
                 padding: const EdgeInsets.all(16),
                 color: AppColors.fondoNegro,

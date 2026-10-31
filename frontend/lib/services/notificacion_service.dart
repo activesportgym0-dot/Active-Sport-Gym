@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import '../models/notificacion_model.dart';
@@ -87,9 +88,16 @@ class NotificacionService {
       final data = _decodificarRespuesta(response.body);
 
       if (response.statusCode == 201) {
+        // URL que el servidor guardó en la columna imagen_url (null = no recibió imagen)
+        final creada = data['notificacion'];
+        final imagenUrl = creada is Map ? creada['imagen_url']?.toString() : null;
+        debugPrint(
+          'Notificación creada | imagen enviada: ${imagen != null} | imagen_url guardada: $imagenUrl',
+        );
         return {
           'success': true,
           'message': data['mensaje'] ?? 'Notificación creada con éxito',
+          'imagen_url': imagenUrl,
         };
       }
       return {

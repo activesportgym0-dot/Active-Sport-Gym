@@ -2,12 +2,15 @@ class CategoriaAsociada {
   final int idCategoria;
   final String nombre;
 
-  CategoriaAsociada({required this.idCategoria, required this.nombre});
+  CategoriaAsociada({
+    required this.idCategoria,
+    required this.nombre,
+  });
 
   factory CategoriaAsociada.fromJson(Map<String, dynamic> json) {
-    final cat = json['categoria_ejercicios'] ?? {};
+    final cat = json['categoria_ejercicios'] ?? json;
     return CategoriaAsociada(
-      idCategoria: cat['id_categoria'] ?? 0,
+      idCategoria: cat['id_categoria'] ?? json['id_categoria'] ?? 0,
       nombre: cat['nombre'] ?? '',
     );
   }
@@ -62,5 +65,23 @@ class EjercicioModel {
       ritmoMovimiento: json['ritmo_movimiento'],
       categorias: listaCats,
     );
+  }
+
+  // ==========================================
+  // MÉTODOS AUXILIARES PARA CLIENTE
+  // ==========================================
+
+  /// Obtiene los nombres de las categorías formateados
+  String get categoriasTexto {
+    if (categorias.isEmpty) return 'SIN CATEGORÍA';
+    return categorias.map((c) => c.nombre).join(' • ');
+  }
+
+  /// Retorna la primera categoría asociada o 'General'
+  String get categoriaPrincipal {
+    if (categorias.isNotEmpty && categorias.first.nombre.isNotEmpty) {
+      return categorias.first.nombre;
+    }
+    return 'General';
   }
 }
