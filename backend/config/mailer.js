@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-// Helper para leer el logo y convertirlo en un adjunto compatible con la API de Brevo
+// Helper para leer el logo y adaptarlo correctamente para Brevo (inline)
 export const obtenerAdjuntoLogo = () => {
   try {
     const rutaLogo = path.resolve("./assets/images/logo.png");
@@ -9,10 +9,11 @@ export const obtenerAdjuntoLogo = () => {
       const archivoBuffer = fs.readFileSync(rutaLogo);
       return [
         {
-          content: archivoBuffer.toString("base64"), // 👈 Brevo necesita el contenido en base64
+          content: archivoBuffer.toString("base64"),
           name: "logo.png",
-          inline: true, // Indica que es un archivo incrustado
-          cid: "logoActiveGym" // El mismo ID que usas en el HTML src="cid:logoActiveGym"
+          // 👈 Estas propiedades son vitales para que Brevo lo incruste en el HTML
+          inline: true,
+          contentId: "logoActiveGym" 
         }
       ];
     }
