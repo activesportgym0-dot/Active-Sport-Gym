@@ -6,9 +6,9 @@ import {
   actualizarPasswordUsuario
 } from "../models/recuperarModel.js";
 import bcrypt from "bcrypt";
-import { transporter } from "../config/mailer.js";
-import { plantillaCodigoRecuperacion } from "../utils/emails/plantillaCodigoRecuperacion.js";
-import { plantillaPasswordCambiada } from "../utils/emails/plantillaPasswordCambiada.js";
+// 👈 Importamos directamente las funciones de correo basadas en Brevo que ajustamos
+import { enviarCorreoRecuperacion } from "../utils/emails/plantillaCodigoRecuperacion.js";
+import { enviarCorreoPasswordCambiada } from "../utils/emails/plantillaPasswordCambiada.js";
 
 // 1. SOLICITAR CÓDIGO DE RECUPERACIÓN
 export const solicitarCodigo = async (req, res) => {
@@ -39,15 +39,13 @@ export const solicitarCodigo = async (req, res) => {
       return res.status(500).json({ mensaje: "Error al generar el código de seguridad" });
     }
 
-    // GENERAR CONTENIDO DEL CORREO DESDE LA PLANTILLA
-    const contenidoCorreo = plantillaCodigoRecuperacion(usuario.nombre, codigo);
-
-    // ENVIAR EL CORREO ELECTRÓNICO
-    await transporter.sendMail({
-      from: `"Active Sport Gym" <${process.env.EMAIL_USER}>`,
-      to: correoLimpio,
-      ...contenidoCorreo
-    });
+    // ENVIAR EL CORREO USANDO LA FUNCIÓN DE BREVO
+    const resultadoEnvio = await enviarCorreoRecuperacion(correoLimpio, usuario.nombre, codigo);
+    
+    if (!resultadoEnvio.exito) {
+      console.error("Error al enviar correo con Brevo:", resultadoEnvio.error);
+      return res.status(500).json({ mensaje: "Error al enviar el correo de recuperación" });
+    }
 
     return res.status(200).json({ mensaje: "Código enviado correctamente a tu correo electrónico" });
 
@@ -106,15 +104,12 @@ export const cambiarContraseñaConCodigo = async (req, res) => {
     // MARCAR EL CÓDIGO COMO USADO
     await marcarCodigoComoUsado(registroCodigo.id);
 
-    // GENERAR CONTENIDO DEL CORREO DESDE LA PLANTILLA
-    const contenidoCorreo = plantillaPasswordCambiada(usuario.nombre);
+    // NOTIFICAR AL CORREO DEL USUARIO USANDO LA FUNCIÓN DE BREVO
+    const resultadoEnvio = await enviarCorreoPasswordCambiada(correoLimpio, usuario.nombre);
 
-    // NOTIFICAR AL CORREO DEL USUARIO
-    await transporter.sendMail({
-      from: `"Active Sport Gym" <${process.env.EMAIL_USER}>`,
-      to: correoLimpio,
-      ...contenidoCorreo
-    });
+    if (!resultadoEnvio.exito) {
+      console.error("Error al enviar notificación de contraseña cambiada:", resultadoEnvio.error);
+    }
 
     return res.status(200).json({ mensaje: "Contraseña actualizada exitosamente" });
 

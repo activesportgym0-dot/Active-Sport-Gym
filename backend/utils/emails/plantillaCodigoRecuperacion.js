@@ -1,10 +1,16 @@
+import { BrevoClient } from '@getbrevo/brevo';
 import { obtenerAdjuntoLogo } from "../../config/mailer.js";
 
-export const plantillaCodigoRecuperacion = (nombreUsuario, codigo) => {
-  return {
-    subject: `${codigo} es tu código de verificación - Active Sport Gym`,
-    attachments: obtenerAdjuntoLogo(),
-    html: `
+export const enviarCorreoRecuperacion = async (correoDestino, nombreUsuario, codigo) => {
+  try {
+    const brevo = new BrevoClient({
+      apiKey: process.env.BREVO_API_KEY
+    });
+
+    const adjuntos = obtenerAdjuntoLogo();
+    const tieneLogo = adjuntos.length > 0;
+
+    const html = `
       <!DOCTYPE html>
       <html lang="es">
       <head>
@@ -37,7 +43,7 @@ export const plantillaCodigoRecuperacion = (nombreUsuario, codigo) => {
         <div class="wrapper">
           <div class="header">
             <div class="logo-container">
-              <img src="cid:logoActiveGym" alt="Active Sport Gym" class="logo" />
+              ${tieneLogo ? '<img src="cid:logoActiveGym" alt="Active Sport Gym" class="logo" />' : ''}
             </div>
           </div>
 
@@ -65,6 +71,26 @@ export const plantillaCodigoRecuperacion = (nombreUsuario, codigo) => {
         </div>
       </body>
       </html>
-    `
-  };
+    `;
+
+    const payload = {
+      sender: {
+        name: process.env.EMAIL_FROM_NAME || 'Active Sport Gym',
+        email: process.env.EMAIL_USER
+      },
+      to: [{ email: correoDestino, name: nombreUsuario }],
+      subject: `${codigo} es tu código de verificación - Active Sport Gym`,
+      htmlContent: html
+    };
+
+    if (Array.isArray(adjuntos) && adjuntos.length > 0 && adjuntos[0].content) {
+      payload.attachment = adjuntos;
+    }
+
+    const resultado = await brevo.transactionalEmails.sendTransacEmail(payload);
+    return { exito: true, resultado };
+  } catch (error) {
+    console.error('Error enviando correo de recuperación con Brevo:', error);
+    return { exito: false, error };
+  }
 };
