@@ -19,26 +19,20 @@ export const enviarCorreoStockDisponible = async ({ correoCliente, nombreCliente
         <style>
           body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0b0f17; margin: 0; padding: 40px 10px; }
           .wrapper { max-width: 620px; margin: 0 auto; background: #121824; border-radius: 20px; overflow: hidden; border: 1px solid #1f293d; box-shadow: 0 20px 40px rgba(0,0,0,0.6); }
-          
           .header { background: linear-gradient(180deg, #000000 0%, #121212 100%); padding: 35px 20px; text-align: center; border-bottom: 3px solid #22c55e; }
-          .logo { max-width: 140px; height: auto; display: block; margin: 0 auto; filter: drop-shadow(0 0 10px rgba(34,197,94,0.3)); }
-          
           .content { padding: 40px 35px; color: #f8fafc; }
           .badge-stock { display: inline-block; background-color: rgba(34, 197, 94, 0.15); border: 1px solid #22c55e; color: #4ade80; font-size: 11px; font-weight: 800; padding: 6px 14px; border-radius: 50px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 15px; }
-          
           .title { font-size: 24px; font-weight: 900; color: #ffffff; margin: 0 0 10px 0; letter-spacing: -0.5px; }
           .subtitle { font-size: 14px; color: #94a3b8; line-height: 1.6; margin: 0 0 25px 0; }
-          
           .product-box { background: linear-gradient(135deg, #162a21 0%, #102018 100%); border: 1px solid #22c55e; border-radius: 16px; padding: 22px 25px; margin-bottom: 25px; box-shadow: 0 0 20px rgba(34, 197, 94, 0.12); }
           .product-box-title { font-size: 12px; color: #86efac; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; border-bottom: 1px solid rgba(34, 197, 94, 0.2); padding-bottom: 8px; }
-          
           .footer { text-align: center; padding: 20px; font-size: 12px; color: #64748b; background-color: #0d121d; border-top: 1px solid #1f293d; }
         </style>
       </head>
       <body>
         <div class="wrapper">
           <div class="header">
-            ${tieneLogo ? '<img src="cid:logoActiveGym" alt="Active Sport Gym" class="logo" />' : ''}
+            ${tieneLogo ? '<img src="cid:logoActiveGym" alt="Active Sport Gym" width="140" style="display: block; margin: 0 auto; border: 0; outline: none; text-decoration: none; width: 140px; height: auto;" />' : ''}
           </div>
 
           <div class="content">

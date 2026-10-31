@@ -43,7 +43,6 @@ export const enviarCorreoConfirmacionPedido = async ({ correoCliente, nombreClie
           .wrapper { max-width: 600px; margin: 0 auto; }
           .card { background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3); }
           .header { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 35px 30px; text-align: center; border-bottom: 4px solid #22c55e; }
-          .logo { max-width: 140px; margin-bottom: 12px; }
           .header-title { color: #ffffff; font-size: 22px; font-weight: 800; margin: 0; text-transform: uppercase; }
           .content { padding: 35px 30px; }
           .greeting { font-size: 18px; color: #0f172a; font-weight: 700; margin-top: 0; }
@@ -59,8 +58,8 @@ export const enviarCorreoConfirmacionPedido = async ({ correoCliente, nombreClie
         <div class="wrapper">
           <div class="card">
             <div class="header">
-              ${tieneLogo ? '<img src="cid:logoActiveGym" alt="Active Sport Gym" class="logo" />' : ''}
-              <h1 class="header-title">¡Hemos recibido tu Pedido!</h1>
+              ${tieneLogo ? '<img src="cid:logoActiveGym" alt="Active Sport Gym" width="140" style="display: block; margin: 0 auto; border: 0; outline: none; text-decoration: none; width: 140px; height: auto;" />' : ''}
+              <h1 class="header-title" style="margin-top: 15px;">¡Hemos recibido tu Pedido!</h1>
             </div>
             <div class="content">
               <p class="greeting">¡Hola, ${clienteNombre}! 👋</p>
