@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
-import 'package:frontend/models/regla_horario_model.dart'; // 👈 AJUSTA la carpeta si la tuya es distinta
+import 'package:frontend/models/regla_horario_model.dart'; // AJUSTA la carpeta si la tuya es distinta
 
 class ModalReglaHorario extends StatefulWidget {
   final Map<String, dynamic>? registroExistente;

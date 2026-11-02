@@ -5,18 +5,15 @@ import 'package:frontend/componentes/fondo.dart';
 import 'package:frontend/pantallas/cliente/rutina/iniciar-Rutina/detalle_rutina_screen.dart';
 import 'package:frontend/pantallas/cliente/menuLateral/historial_screen.dart';
 import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
+import 'package:frontend/pantallas/cliente/rutina/diaria/crear_rutina_diaria_screen.dart';
+import 'package:frontend/services/rutina_service.dart';
 
 // Importa tus dos pantallas de detalle correspondientes
 import 'package:frontend/pantallas/cliente/rutina/detalle_rutina_diaria_screen.dart'; 
 import 'package:frontend/pantallas/cliente/rutina/detalle_plan_semanal_screen.dart'; // Ajusta la ruta si es necesario
 
 class EntrenamientoScreen extends StatefulWidget {
-  final List<Map<String, dynamic>>? rutinasBackend;
-
-  const EntrenamientoScreen({
-    super.key,
-    this.rutinasBackend,
-  });
+  const EntrenamientoScreen({super.key});
 
   @override
   State<EntrenamientoScreen> createState() => _EntrenamientoScreenState();
@@ -25,74 +22,47 @@ class EntrenamientoScreen extends StatefulWidget {
 class _EntrenamientoScreenState extends State<EntrenamientoScreen> {
   int _pestanaActiva = 0; // 0 = Diarias, 1 = Semanales
 
-  late List<Map<String, dynamic>> _rutinasDiarias;
-  late List<Map<String, dynamic>> _rutinasSemanales;
+  // Rutinas reales del cliente (GET /rutinas/usuario/:id), ya convertidas al formato
+  // que usan las tarjetas, los detalles y el entrenamiento en vivo.
+  List<Map<String, dynamic>> _rutinasDiarias = [];
+  List<Map<String, dynamic>> _rutinasSemanales = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _cargarRutinas();
+  }
 
-    final todasLasRutinas = widget.rutinasBackend ?? [
-      {
-        'id_rutina': 1,
-        'nombre_rutina': 'RUTINA EXPRESS DE BRAZO',
-        'tipo': 'diaria',
-        'fecha': '19/10/2026',
-        'ejercicios': [
-          {
-            'title': 'Dominadas en Barra',
-            'category': 'Espalda',
-            'descanso_final': 60,
-            'series': [
-              {'repeticiones': 10, 'peso': 0, 'descanso_entre_series': 30},
-              {'repeticiones': 10, 'peso': 5, 'descanso_entre_series': 30},
-            ]
-          }
-        ]
-      },
-      {
-        'id_rutina': 2,
-        'nombre_plan': 'PLAN HIPERTROFIA FASE 1',
-        'tipo': 'semanal',
-        'fecha': '20/10/2026',
-        'estructura_semanal': {
-          'L': {
-            'nombre_rutina': 'Espalda + Bíceps',
-            'ejercicios': [
-              {
-                'title': 'Remo con Mancuerna',
-                'category': 'Espalda',
-                'descanso_final': 60,
-                'series': [
-                  {'repeticiones': 12, 'peso': 14, 'descanso_entre_series': 30},
-                ]
-              }
-            ]
-          },
-          'Mi': {
-            'nombre_rutina': 'Pecho + Tríceps',
-            'ejercicios': [
-              {
-                'title': 'Press de Banca',
-                'category': 'Pecho',
-                'descanso_final': 90,
-                'series': [
-                  {'repeticiones': 10, 'peso': 40, 'descanso_entre_series': 45},
-                ]
-              }
-            ]
-          }
-        }
-      },
-    ];
+  Future<void> _cargarRutinas() async {
+    if (mounted) setState(() => _isLoading = true);
+    try {
+      final rutinas = await RutinaService.obtenerMisRutinas();
+      if (!mounted) return;
+      setState(() {
+        _rutinasDiarias = rutinas.where((r) => r.esDiaria).map((r) => r.toMapaEntrenamiento()).toList();
+        _rutinasSemanales = rutinas.where((r) => r.esSemanal).map((r) => r.toMapaEntrenamiento()).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al cargar tus rutinas: ${e.toString().replaceFirst('Exception: ', '')}'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
 
-    _rutinasDiarias = todasLasRutinas
-        .where((r) => (r['tipo'] ?? '').toString().toLowerCase() == 'diaria')
-        .toList();
-
-    _rutinasSemanales = todasLasRutinas
-        .where((r) => (r['tipo'] ?? '').toString().toLowerCase() == 'semanal')
-        .toList();
+  // Abre la pantalla de crear rutina y, al volver, recarga la lista
+  Future<void> _abrirCrearRutina() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const CrearRutinaDiariaScreen()),
+    );
+    if (mounted) _cargarRutinas();
   }
 
   // 1. Abre el Detalle de Rutina Diaria
@@ -117,8 +87,11 @@ class _EntrenamientoScreenState extends State<EntrenamientoScreen> {
 
   // 3. Abre la Portada de Inicio de Entrenamiento (8.png) con el cronómetro
   void _iniciarEntrenamiento(Map<String, dynamic> rutina, [Map<String, dynamic>? diaRutina]) {
+    // La pantalla de ejecución lee los ejercicios de diaRutina['ejercicios']; si no llegan,
+    // muestra unos de ejemplo. Por eso se envían aquí los de la rutina.
     final Map<String, dynamic> diaData = diaRutina ?? {
-      'nombre_dia': rutina['nombre_rutina'] ?? rutina['nombre_plan'] ?? 'ENTRENAMIENTO'
+      'nombre_dia': rutina['nombre_rutina'] ?? rutina['nombre_plan'] ?? 'ENTRENAMIENTO',
+      'ejercicios': rutina['ejercicios'],
     };
 
     Navigator.push(
@@ -148,6 +121,11 @@ class _EntrenamientoScreenState extends State<EntrenamientoScreen> {
           style: EstiloTexto.tekoTituloSeccion.copyWith(fontSize: 20, letterSpacing: 1.2),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline, color: AppColors.verdePrimario, size: 26),
+            tooltip: 'Crear rutina',
+            onPressed: _abrirCrearRutina,
+          ),
           IconButton(
             icon: const Icon(Icons.history_rounded, color: AppColors.verdePrimario, size: 24),
             tooltip: 'Historial',
@@ -230,9 +208,17 @@ class _EntrenamientoScreenState extends State<EntrenamientoScreen> {
               const SizedBox(height: 16),
 
               Expanded(
-                child: _pestanaActiva == 0
-                    ? _construirListaDiarias()
-                    : _construirListaSemanales(),
+                child: _isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(color: AppColors.verdePrimario),
+                      )
+                    : RefreshIndicator(
+                        color: AppColors.verdePrimario,
+                        onRefresh: _cargarRutinas,
+                        child: _pestanaActiva == 0
+                            ? _construirListaDiarias()
+                            : _construirListaSemanales(),
+                      ),
               ),
             ],
           ),
@@ -246,10 +232,17 @@ class _EntrenamientoScreenState extends State<EntrenamientoScreen> {
   // 🏋️ LISTA DIARIAS
   Widget _construirListaDiarias() {
     if (_rutinasDiarias.isEmpty) {
-      return const Center(child: Text('No tienes rutinas diarias creadas.', style: TextStyle(color: Colors.grey)));
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          SizedBox(height: 120),
+          Center(child: Text('No tienes rutinas diarias creadas.', style: TextStyle(color: Colors.grey))),
+        ],
+      );
     }
 
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: _rutinasDiarias.length,
       itemBuilder: (context, index) {
@@ -335,10 +328,17 @@ class _EntrenamientoScreenState extends State<EntrenamientoScreen> {
   // 📅 LISTA SEMANALES
   Widget _construirListaSemanales() {
     if (_rutinasSemanales.isEmpty) {
-      return const Center(child: Text('No tienes planes semanales creados.', style: TextStyle(color: Colors.grey)));
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          SizedBox(height: 120),
+          Center(child: Text('No tienes planes semanales creados.', style: TextStyle(color: Colors.grey))),
+        ],
+      );
     }
 
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: _rutinasSemanales.length,
       itemBuilder: (context, index) {
@@ -458,7 +458,8 @@ class _EntrenamientoScreenState extends State<EntrenamientoScreen> {
                           // Botón INICIAR para entrenar ese día en vivo
                           GestureDetector(
                             onTap: () => _iniciarEntrenamiento(plan, {
-                              'nombre_dia': '$nombreRutinaDia (${nombresCompletos[diaKey] ?? diaKey})'
+                              'nombre_dia': '$nombreRutinaDia (${nombresCompletos[diaKey] ?? diaKey})',
+                              'ejercicios': datosDia['ejercicios'],
                             }),
                             child: const Row(
                               children: [

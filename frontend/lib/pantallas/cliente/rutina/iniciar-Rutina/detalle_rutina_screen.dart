@@ -76,7 +76,12 @@ class _DetalleRutinaScreenState extends State<DetalleRutinaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final String nombreDia = (widget.diaRutina['nombre_dia'] ?? 'ESPALDA + BÍCEPS').toString().toUpperCase();
+    final String nombreDia = (widget.diaRutina['nombre_dia'] ?? 'ENTRENAMIENTO').toString().toUpperCase();
+
+    // Datos reales de la rutina que se va a entrenar (los que armó el usuario al crearla)
+    final List ejercicios = widget.diaRutina['ejercicios'] as List? ?? [];
+    final int totalSeries = ejercicios.fold<int>(0, (suma, e) => suma + ((e['series'] as List?)?.length ?? 0));
+    final bool hayEjercicios = ejercicios.isNotEmpty;
 
     return Scaffold(
       backgroundColor: AppColors.fondoNegro,
@@ -148,7 +153,20 @@ class _DetalleRutinaScreenState extends State<DetalleRutinaScreen> {
                             borderRadius: BorderRadius.circular(2),
                           ),
                         ),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 10),
+
+                        // Resumen de la rutina real: cuántos ejercicios y series tiene
+                        Text(
+                          hayEjercicios
+                              ? '${ejercicios.length} ${ejercicios.length == 1 ? 'ejercicio' : 'ejercicios'}  •  $totalSeries ${totalSeries == 1 ? 'serie' : 'series'}'
+                              : 'Esta rutina todavía no tiene ejercicios',
+                          style: TextStyle(
+                            color: hayEjercicios ? AppColors.verdePrimario : Colors.redAccent,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
 
                         // ✨ FRASE DINÁMICA CON ANIMACIÓN DE TRANSICIÓN SUAVE (Fade)
                         SizedBox(
@@ -189,7 +207,9 @@ class _DetalleRutinaScreenState extends State<DetalleRutinaScreen> {
                         elevation: 8,
                         shadowColor: AppColors.verdePrimario.withOpacity(0.4),
                       ),
-                      onPressed: () {
+                      onPressed: !hayEjercicios
+                          ? null
+                          : () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(

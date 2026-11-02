@@ -4,9 +4,13 @@ import 'package:frontend/componentes/cliente/home/tarjeta_ejercicio.dart';
 class ListaEjerciciosCliente extends StatelessWidget {
   final List<Map<String, String>> ejercicios;
 
+  /// Opcional: se llama al tocar un ejercicio de la lista.
+  final void Function(Map<String, String> ejercicio)? onEjercicioTap;
+
   const ListaEjerciciosCliente({
     super.key,
     required this.ejercicios,
+    this.onEjercicioTap,
   });
 
   @override
@@ -23,6 +27,7 @@ class ListaEjerciciosCliente extends StatelessWidget {
           title: ejercicio['title']!,
           description: ejercicio['description']!,
           imagePath: ejercicio['imagePath']!,
+          onTap: onEjercicioTap == null ? null : () => onEjercicioTap!(ejercicio),
         );
       },
     );

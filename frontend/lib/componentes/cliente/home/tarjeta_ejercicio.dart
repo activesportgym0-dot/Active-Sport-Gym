@@ -5,7 +5,8 @@ class TarjetaEjercicio extends StatelessWidget {
   final String category;
   final String title;
   final String description;
-  final String imagePath;
+  final String imagePath; // URL de Cloudinary (o un asset local)
+  final VoidCallback? onTap; // opcional: al tocar la tarjeta
 
   const TarjetaEjercicio({
     super.key,
@@ -13,11 +14,45 @@ class TarjetaEjercicio extends StatelessWidget {
     required this.title,
     required this.description,
     required this.imagePath,
+    this.onTap,
   });
+
+  Widget _placeholder() {
+    return Container(
+      width: 80,
+      height: 65,
+      color: AppColors.grisOscuro,
+      child: const Icon(Icons.fitness_center, color: AppColors.grisMedio),
+    );
+  }
+
+  // La imagen del ejercicio viene de la base de datos (URL); si es un asset local también sirve
+  Widget _construirImagen() {
+    if (imagePath.isEmpty) return _placeholder();
+
+    if (imagePath.startsWith('assets/')) {
+      return Image.asset(
+        imagePath,
+        width: 80,
+        height: 65,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _placeholder(),
+      );
+    }
+    return Image.network(
+      imagePath,
+      width: 80,
+      height: 65,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => _placeholder(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: AppColors.grisOscuro,
@@ -28,18 +63,7 @@ class TarjetaEjercicio extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: Image.asset(
-              imagePath,
-              width: 80,
-              height: 65,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
-                width: 80,
-                height: 65,
-                color: AppColors.grisOscuro,
-                child: const Icon(Icons.fitness_center, color: AppColors.grisMedio),
-              ),
-            ),
+            child: _construirImagen(),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -78,6 +102,7 @@ class TarjetaEjercicio extends StatelessWidget {
           ),
           const Icon(Icons.chevron_right, color: AppColors.verdePrimario, size: 24),
         ],
+      ),
       ),
     );
   }
