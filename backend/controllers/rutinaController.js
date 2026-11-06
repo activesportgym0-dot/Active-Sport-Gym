@@ -12,7 +12,8 @@ import {
     actualizarSerieRutina,
     eliminarSerieRutina,
     eliminarEjercicioRutina,
-    eliminarRutina
+    eliminarRutina,
+    limpiarDiasRutina
 } from "../models/rutinaModel.js";
 import { supabase } from "../config/supabase.js";
 
@@ -425,8 +426,8 @@ export const editarRutina = async (req, res) => {
         // 3. Actualizar los datos principales de la rutina (nombre, tipo, fecha si aplica)
         const { data: rutinaActualizada, error: errorUpdate } = await actualizarRutina(numId, {
             nombre: nombreLimpio,
-            tipo: tipo,
-            ...(fecha && { fecha })
+            tipo: tipo
+            // La tabla rutinas no tiene columna "fecha" (solo fecha_creacion), por eso no se actualiza aquí
         });
         if (errorUpdate) {
             return res.status(500).json({ mensaje: "Error al actualizar la información principal de la rutina" });
@@ -484,7 +485,7 @@ export const editarRutina = async (req, res) => {
                 }
                 objetoDia.ejercicios.push({
                     id_rutina_ejercicio: ejercicioRutina.id_rutina_ejercicio,
-                    id_ejercicio: ejercicioRutina.id_rutina_ejercicio,
+                    id_ejercicio: ejercicioRutina.id_ejercicio,
                     orden: ejercicioRutina.orden
                 });
             }

@@ -10,14 +10,30 @@ const CAMPOS_ORDENADOS = `
     leida,
     fecha
 `;
-// Obtiene las notificaciones del usuario (las personales y las globales para todos)
+// Obtiene las notificaciones del usuario (las personales y las globales para todos).
+// En las PERSONALES, "leida" es la columna de la notificación. En las GLOBALES (id_usuario null)
+// "leida" se calcula por usuario con la tabla notificaciones_leidas: así lo que lee un cliente
+// no cambia lo que ven los demás.
 export const obtenerNotificacionesUsuarioBD = async (id_usuario) => {
     const { data, error } = await supabase
         .from("notificaciones")
         .select(CAMPOS_ORDENADOS)
         .or(`id_usuario.eq.${id_usuario},id_usuario.is.null`)
         .order("fecha", { ascending: false });
-    return { data, error };
+    if (error) return { data: null, error };
+
+    const { data: leidas, error: errorLeidas } = await supabase
+        .from("notificaciones_leidas")
+        .select("id_notificacion")
+        .eq("id_usuario", id_usuario);
+    if (errorLeidas) return { data: null, error: errorLeidas };
+
+    const idsLeidas = new Set((leidas || []).map((l) => l.id_notificacion));
+    const notificaciones = (data || []).map((n) => ({
+        ...n,
+        leida: n.id_usuario === null ? idsLeidas.has(n.id_notificacion) : n.leida
+    }));
+    return { data: notificaciones, error: null };
 };
 // Crea una notificacion (puede ser para un usuario especifico o global si id_usuario es null)
 export const crearNotificacionBD = async (datosNotificacion) => {
@@ -35,23 +51,74 @@ export const crearNotificacionBD = async (datosNotificacion) => {
 };
 // Marca una notificacion especifica como leida
 export const marcarNotificacionLeidaBD = async (id_notificacion, id_usuario) => {
-    const { data, error } = await supabase
+    // La notificación debe ser personal del usuario o general
+    const { data: notificacion, error } = await supabase
         .from("notificaciones")
-        .update({ leida: true })
+        .select(CAMPOS_ORDENADOS)
         .eq("id_notificacion", Number(id_notificacion))
         .or(`id_usuario.eq.${id_usuario},id_usuario.is.null`)
-        .select(CAMPOS_ORDENADOS)
-        .single();
-    return { data, error };
-};
-// Marca todas las notificaciones del usuario como leidas
-export const marcarTodasLeidasBD = async (id_usuario) => {
-    const { data, error } = await supabase
+        .maybeSingle();
+    if (error) return { data: null, error };
+    if (!notificacion) return { data: null, error: null }; // el controller responde 404
+
+    // GENERAL: se guarda que ESTE usuario la leyó (no se toca la notificación)
+    if (notificacion.id_usuario === null) {
+        const { error: errorLectura } = await supabase
+            .from("notificaciones_leidas")
+            .upsert(
+                [{ id_notificacion: notificacion.id_notificacion, id_usuario }],
+                { onConflict: "id_notificacion,id_usuario", ignoreDuplicates: true }
+            );
+        if (errorLectura) return { data: null, error: errorLectura };
+        return { data: { ...notificacion, leida: true }, error: null };
+    }
+
+    // PERSONAL: se marca la notificación
+    const { data, error: errorUpdate } = await supabase
         .from("notificaciones")
         .update({ leida: true })
-        .or(`id_usuario.eq.${id_usuario},id_usuario.is.null`)
+        .eq("id_notificacion", notificacion.id_notificacion)
+        .eq("id_usuario", id_usuario)
+        .select(CAMPOS_ORDENADOS)
+        .single();
+    return { data, error: errorUpdate };
+};
+// Marca todas las notificaciones del usuario como leidas.
+// Solo cambia lo del propio usuario: sus personales y las generales que él todavía no había leído.
+export const marcarTodasLeidasBD = async (id_usuario) => {
+    // Personales sin leer
+    const { data: personales, error: errorPersonales } = await supabase
+        .from("notificaciones")
+        .update({ leida: true })
+        .eq("id_usuario", id_usuario)
+        .eq("leida", false)
         .select(CAMPOS_ORDENADOS);
-    return { data, error };
+    if (errorPersonales) return { data: null, error: errorPersonales };
+
+    // Generales que este usuario todavía no ha leído
+    const { data: generales, error: errorGenerales } = await supabase
+        .from("notificaciones")
+        .select("id_notificacion")
+        .is("id_usuario", null);
+    if (errorGenerales) return { data: null, error: errorGenerales };
+
+    const { data: yaLeidas, error: errorYaLeidas } = await supabase
+        .from("notificaciones_leidas")
+        .select("id_notificacion")
+        .eq("id_usuario", id_usuario);
+    if (errorYaLeidas) return { data: null, error: errorYaLeidas };
+
+    const idsYaLeidas = new Set((yaLeidas || []).map((l) => l.id_notificacion));
+    const nuevas = (generales || [])
+        .filter((g) => !idsYaLeidas.has(g.id_notificacion))
+        .map((g) => ({ id_notificacion: g.id_notificacion, id_usuario }));
+
+    if (nuevas.length > 0) {
+        const { error: errorInsert } = await supabase.from("notificaciones_leidas").insert(nuevas);
+        if (errorInsert) return { data: null, error: errorInsert };
+    }
+
+    return { data: [...(personales || []), ...nuevas], error: null };
 };
 // Elimina una notificacion por parte del usuario o administrador
 export const eliminarNotificacionBD = async (id_notificacion) => {

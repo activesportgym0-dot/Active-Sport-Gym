@@ -37,7 +37,7 @@ import pedidosRouter from "./routes/pedidosRoutes.js";
 
 import reglasHorariosRouter from "./routes/reglasHorariosRoutes.js";
 
-import chatearConGym from "./routes/chatRoutes.js";
+import chatRoutes from "./routes/chatRoutes.js";
 
 import dashboardRouter from "./routes/dashboardRouter.js";
 
@@ -107,7 +107,7 @@ app.use("/pedidos", pedidosRouter);
 app.use("/reglas-horarios", reglasHorariosRouter);
 
 // Rutas de chat
-app.use("/chat", chatearConGym);
+app.use("/chat", chatRoutes);
 
 //Ruta de resumen
 app.use("/dashboard", dashboardRouter);

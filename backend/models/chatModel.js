@@ -61,19 +61,29 @@ export const obtenerMetricasAdmin = async () => {
 // FUNCIONES COMPARTIDAS DE MEMORIA Y ALMACENAMIENTO DE CHAT
 // Funciona tanto para consultas de Cliente como de Administrador
 
-// Recupera los últimos mensajes de una sesión para dar memoria conversacional a la IA
-export const obtenerHistorialChat = async (sesionId, limite = 10) => {
+// Recupera los últimos mensajes de una sesión para dar memoria conversacional a la IA.
+// Solo trae los mensajes del propio usuario (nadie puede leer la sesión de otro) y
+// devuelve los ÚLTIMOS "limite" mensajes en orden cronológico.
+export const obtenerHistorialChat = async (sesionId, usuarioId, limite = 10) => {
   try {
-    const { data, error } = await supabase
+    let consulta = supabase
       .from("mensajes_chat")
       .select("emisor, mensaje")
-      .eq("sesion_id", sesionId)
-      .order("id_mensaje", { ascending: true })
+      .eq("sesion_id", sesionId);
+
+    if (usuarioId) consulta = consulta.eq("usuario_id", usuarioId);
+
+    const { data, error } = await consulta
+      .order("id_mensaje", { ascending: false })
       .limit(limite);
 
-    if (error) return [];
-    return data || [];
+    if (error) {
+      console.error("Error al leer el historial del chat:", error);
+      return [];
+    }
+    return (data || []).reverse();
   } catch (error) {
+    console.error("Error al leer el historial del chat:", error);
     return [];
   }
 };
@@ -81,11 +91,30 @@ export const obtenerHistorialChat = async (sesionId, limite = 10) => {
 // Guarda la pregunta del usuario y la respuesta generada por la IA en Supabase
 export const guardarMensajesChat = async (sesionId, usuarioId, mensajeUsuario, respuestaAsistente) => {
   try {
-    await supabase.from("mensajes_chat").insert([
+    const { error } = await supabase.from("mensajes_chat").insert([
       { sesion_id: sesionId, usuario_id: usuarioId || null, emisor: "usuario", mensaje: mensajeUsuario.trim() },
       { sesion_id: sesionId, usuario_id: usuarioId || null, emisor: "asistente", mensaje: respuestaAsistente }
     ]);
+    if (error) console.error("Error al guardar mensajes en la tabla mensajes_chat:", error);
   } catch (error) {
     console.error("Error al guardar mensajes en la tabla mensajes_chat:", error);
+  }
+};
+
+// Horarios y reglas del gimnasio, para que la IA responda con datos reales
+export const obtenerReglasHorariosChat = async () => {
+  try {
+    const { data, error } = await supabase
+      .from("reglas_horarios")
+      .select("tipo, titulo, contenido")
+      .order("id_regla_horario", { ascending: true });
+    if (error) {
+      console.error("Error al leer reglas y horarios para el chat:", error);
+      return [];
+    }
+    return data || [];
+  } catch (error) {
+    console.error("Error al leer reglas y horarios para el chat:", error);
+    return [];
   }
 };

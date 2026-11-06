@@ -24,6 +24,7 @@ export const obtenerTodasRutinas = async () => {
                         id_ejercicio,
                         nombre,
                         gif_url,
+                        imagen,
                         maquina
                     ),
                     rutina_series (
@@ -63,6 +64,7 @@ export const obtenerRutinaPorId = async (id) => {
                         id_ejercicio,
                         nombre,
                         gif_url,
+                        imagen,
                         maquina
                     ),
                     rutina_series (
@@ -103,6 +105,7 @@ export const obtenerRutinasPorUsuario = async (idUsuario) => {
                         id_ejercicio,
                         nombre,
                         gif_url,
+                        imagen,
                         maquina
                     ),
                     rutina_series (
@@ -285,6 +288,17 @@ export const eliminarDiaRutina = async (idRutinaDia) => {
         `)
         .single();
     return { data, error };
+};
+
+// LIMPIAR TODOS LOS DÍAS DE UNA RUTINA (se usa al editar la rutina completa).
+// Al borrar los días, sus ejercicios y series se eliminan en cascada (igual que en eliminarRutina).
+export const limpiarDiasRutina = async (idRutina) => {
+    const { error } = await supabase
+        .from("rutina_dias")
+        .delete()
+        .eq("id_rutina", idRutina);
+
+    return { error };
 };
 
 // ELIMINAR EJERCICIO DE UNA RUTINA
