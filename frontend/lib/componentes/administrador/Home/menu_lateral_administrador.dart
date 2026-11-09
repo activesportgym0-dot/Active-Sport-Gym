@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/pantallas/administrador/Gestionusuariosadmin.dart';
-import 'package:frontend/pantallas/administrador/historia_gym.dart';
+import 'package:frontend/pantallas/historia_gym.dart';
 import 'package:frontend/pantallas/administrador/horarios_y_reglas.dart';
 import 'package:frontend/registro-recuperar/Login.dart';
 

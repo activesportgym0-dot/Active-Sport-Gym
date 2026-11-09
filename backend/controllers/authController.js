@@ -18,11 +18,14 @@ export const registro = async (req, res) => {
       peso, 
       altura, 
       contraseña, 
-      confirmarContrasena 
+      confirmarContrasena,
+      municipio,
+      direccion
+
     } = req.body;
 
     // 1. Validar que ningún campo obligatorio esté vacío
-    if (!nombre || !apellido || !correo || !telefono || !cedula || !edad || !peso || !altura || !contraseña || !confirmarContrasena) {
+    if (!nombre || !apellido || !correo || !telefono || !cedula || !edad || !peso || !altura || !contraseña || !confirmarContrasena || !municipio || !direccion) {
       return res.status(400).json({
         mensaje: "Todos los campos son requeridos"
       });
@@ -40,6 +43,19 @@ export const registro = async (req, res) => {
     apellido = apellido.trim();
     correo = correo.trim().toLowerCase();
     telefono = telefono.trim();
+    municipio = String(municipio).trim();
+    direccion = String(direccion).trim();
+
+    if (!municipio || !direccion) {
+      return res.status(400).json({
+        mensaje: "El municipio y la dirección son requeridos"
+      });
+    }
+    if (municipio.length > 100 || direccion.length > 150) {
+      return res.status(400).json({
+        mensaje: "El municipio (máx. 100) o la dirección (máx. 150) son demasiado largos"
+      });
+    }
 
     // Validar formato del correo
     const expresionCorreo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -85,7 +101,9 @@ export const registro = async (req, res) => {
       hashedPassword,
       rolPorDefecto,
       codigoVerificacion,
-      codigoVerificacionExpiracion
+      codigoVerificacionExpiracion,
+      municipio,
+      direccion
     );
 
     if (error) {
@@ -125,8 +143,7 @@ export const registro = async (req, res) => {
     }
 
     return res.status(201).json({
-      mensaje: "Usuario y perfil registrados con éxito. Hemos enviado un código de 6 dígitos a tu correo.",
-      correoEnviado: true,
+      mensaje: "Registro recibido. Hemos enviado un código de 6 dígitos a tu correo. Después de verificarlo, el gimnasio revisará tu registro y activará tu cuenta.",      correoEnviado: true,
       usuario: usuarioRespuesta,
       perfil: perfilCreado || null
     });
@@ -181,7 +198,7 @@ export const login = async (req, res) => {
 
     if (usuario.is_active === false) {
       return res.status(403).json({
-        mensaje: "Tu cuenta ha sido desactivada. Por favor comunícate con soporte."
+        mensaje: "Tu cuenta aún no está activa. Si te acabas de registrar, el gimnasio la activará pronto. Si ya la tenías, comunícate con el gimnasio."
       });
     }
 
@@ -234,8 +251,7 @@ export const verificarCuenta = async (req, res) => {
 
     if (usuario.isVerified) {
       return res.status(400).json({
-        mensaje: "La cuenta ya se encuentra verificada"
-      });
+      mensaje: "Correo verificado. El gimnasio revisará tu registro y activará tu cuenta pronto; cuando esté activa podrás iniciar sesión en Active Sport Gym."      });
     }
 
     if (String(usuario.codigoVerificacion).trim() !== String(codigo).trim()) {

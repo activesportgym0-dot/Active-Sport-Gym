@@ -88,13 +88,9 @@ class _ModalGestionCategoriasState extends State<ModalGestionCategorias> {
   // 🌟 Método para eliminar una categoría validando el código 409 del backend
   Future<void> _eliminarCategoria(dynamic categoriaItem) async {
     int? idCategoria;
-    String nombreCat = '';
 
     if (categoriaItem is Map) {
       idCategoria = categoriaItem['id_categoria'];
-      nombreCat = categoriaItem['nombre'] ?? '';
-    } else {
-      nombreCat = categoriaItem.toString();
     }
 
     if (idCategoria == null) {

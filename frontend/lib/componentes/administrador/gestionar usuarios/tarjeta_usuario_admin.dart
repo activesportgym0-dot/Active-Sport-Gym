@@ -13,9 +13,19 @@ class TarjetaUsuarioAdmin extends StatelessWidget {
     required this.onSwitchChanged,
   });
 
+  // "Garzón · Barrio Centro" (vacío si el usuario no tiene residencia registrada)
+  String get _residencia {
+    final partes = [usuario['municipio'], usuario['direccion']]
+        .map((p) => (p ?? '').toString().trim())
+        .where((p) => p.isNotEmpty)
+        .toList();
+    return partes.join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
     bool activo = usuario['activo'];
+    bool verificado = usuario['verificado'] != false;
     bool esAdmin = usuario['rol'] == 'admin';
 
     return Container(
@@ -63,6 +73,15 @@ class TarjetaUsuarioAdmin extends StatelessWidget {
                         'Cédula: ${usuario['cedula']}',
                         style: const TextStyle(color: AppColors.grisClaro, fontSize: 11),
                       ),
+                      if (_residencia.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          _residencia,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: AppColors.grisClaro, fontSize: 11),
+                        ),
+                      ],
                       const SizedBox(height: 6),
                       Row(
                         children: [
@@ -97,6 +116,24 @@ class TarjetaUsuarioAdmin extends StatelessWidget {
                               ),
                             ),
                           ),
+                          if (!verificado) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.orangeAccent.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'SIN VERIFICAR',
+                                style: TextStyle(
+                                  color: Colors.orangeAccent,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ],

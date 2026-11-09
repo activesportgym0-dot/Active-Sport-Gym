@@ -104,6 +104,33 @@ class UsuarioService {
     }
   }
 
+  // CAMBIAR ROL DE USUARIO: 'admin' o 'cliente' (Requiere token de Administrador)
+  static Future<Map<String, dynamic>> cambiarRol(int idUsuario, String rol) async {
+    if (!_haySesion) return {'success': false, 'message': _sinSesion};
+
+    try {
+      final response = await http.patch(
+        Uri.parse('${ApiConfig.baseUrl}$_rutaUsuarios/$idUsuario/rol'),
+        headers: _headersJson,
+        body: jsonEncode({'rol': rol}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = _decodificarRespuesta(response.body);
+        return {
+          'success': true,
+          'message': data['mensaje'] ?? 'Rol actualizado correctamente',
+        };
+      }
+      return {
+        'success': false,
+        'message': _mensajeError(response, 'No fue posible cambiar el rol'),
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
   // AUXILIARES PRIVADOS
 
   /// 401 = no hay token, 403 = token vencido/inválido o sin permisos de admin.

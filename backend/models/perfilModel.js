@@ -15,6 +15,8 @@ export const obtenerPerfilPorUsuario = async (id_usuario) => {
             edad,
             peso,
             altura,
+            municipio,
+            direccion,
             rol,
             fecha_registro,
             perfil (
@@ -64,6 +66,8 @@ export const actualizarDatosUsuario = async (id_usuario,campos) => {
             edad,
             peso,
             altura,
+            municipio,
+            direccion,
             rol,
             fecha_registro
         `)

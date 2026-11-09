@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/componentes/administrador/membresia/control_membresia_admin.dart';
-import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
+import 'package:frontend/componentes/cliente/burbuja_mini_chat_modal.dart';
 import 'package:frontend/componentes/fondo.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';

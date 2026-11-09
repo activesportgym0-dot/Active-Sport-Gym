@@ -3,7 +3,7 @@ import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/core/colores.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
-import 'verificar_cuenta_screen.dart'; // Asegúrate de importar tu pantalla de verificación
+import 'verificar_cuenta_screen.dart';
 
 class RegistrarScreen extends StatefulWidget {
   const RegistrarScreen({super.key});
@@ -13,12 +13,16 @@ class RegistrarScreen extends StatefulWidget {
 }
 
 class _RegistrarScreenState extends State<RegistrarScreen> {
+  final _formKey = GlobalKey<FormState>();
+
   // Controladores para cada campo del formulario
   final TextEditingController _cedulaController = TextEditingController();
   final TextEditingController _nombreController = TextEditingController();
   final TextEditingController _apellidoController = TextEditingController();
   final TextEditingController _correoController = TextEditingController();
   final TextEditingController _telefonoController = TextEditingController();
+  final TextEditingController _municipioController = TextEditingController();
+  final TextEditingController _direccionController = TextEditingController();
   final TextEditingController _pesoController = TextEditingController();
   final TextEditingController _alturaController = TextEditingController();
   final TextEditingController _edadController = TextEditingController();
@@ -29,13 +33,59 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
 
+  // Estados para validar los requisitos en tiempo real
+  bool _tieneMinimo8 = false;
+  bool _tieneMayuscula = false;
+  bool _tieneNumero = false;
+  bool _tieneSimbolo = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordController.addListener(_validarContrasenaEnTiempoReal);
+  }
+
+  @override
+  void dispose() {
+    _passwordController.removeListener(_validarContrasenaEnTiempoReal);
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _cedulaController.dispose();
+    _nombreController.dispose();
+    _apellidoController.dispose();
+    _correoController.dispose();
+    _telefonoController.dispose();
+    _municipioController.dispose();
+    _direccionController.dispose();
+    _pesoController.dispose();
+    _alturaController.dispose();
+    _edadController.dispose();
+    super.dispose();
+  }
+
+  void _validarContrasenaEnTiempoReal() {
+    final val = _passwordController.text;
+    setState(() {
+      _tieneMinimo8 = val.length >= 8;
+      _tieneMayuscula = RegExp(r'(?=.*[A-Z])').hasMatch(val);
+      _tieneNumero = RegExp(r'(?=.*[0-9])').hasMatch(val);
+      _tieneSimbolo = RegExp(r'(?=.*[!@#\$%^&*(),.?":{}|<>])').hasMatch(val);
+    });
+  }
+
   // Método para ejecutar el registro
   void _realizarRegistro() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
     final cedula = _cedulaController.text.trim();
     final nombre = _nombreController.text.trim();
     final apellido = _apellidoController.text.trim();
     final correo = _correoController.text.trim();
     final telefono = _telefonoController.text.trim();
+    final municipio = _municipioController.text.trim();
+    final direccion = _direccionController.text.trim();
     final pesoStr = _pesoController.text.trim();
     final alturaStr = _alturaController.text.trim();
     final edadStr = _edadController.text.trim();
@@ -44,17 +94,10 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
 
     // Validación rápida local
     if (cedula.isEmpty || nombre.isEmpty || apellido.isEmpty || correo.isEmpty || 
-        telefono.isEmpty || pesoStr.isEmpty || alturaStr.isEmpty || edadStr.isEmpty || 
-        password.isEmpty || confirmPassword.isEmpty) {
+        telefono.isEmpty || municipio.isEmpty || direccion.isEmpty ||
+        pesoStr.isEmpty || alturaStr.isEmpty || edadStr.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Por favor llena todos los campos')),
-      );
-      return;
-    }
-
-    if (password != confirmPassword) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Las contraseñas no coinciden')),
       );
       return;
     }
@@ -68,6 +111,8 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
       apellido: apellido,
       correo: correo,
       telefono: telefono,
+      municipio: municipio,
+      direccion: direccion,
       cedula: cedula,
       edad: int.tryParse(edadStr),
       peso: double.tryParse(pesoStr),
@@ -86,10 +131,9 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
 
     if (exito) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('¡Registro exitoso! Ingresa el código enviado a tu correo.')),
+        const SnackBar(content: Text('¡Registro recibido! Ingresa el código enviado a tu correo.')),
       );
 
-      // REDIRECCIÓN A VERIFICACIÓN: Pasamos el correo para que allá se valide el código
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -200,84 +244,124 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
                           width: 1,
                         ),
                       ),
-                      child: Column(
-                        children: [
-                          _buildTextField(controller: _cedulaController, icon: Icons.card_membership, hint: 'Documento De Identidad...', keyboardType: TextInputType.number),
-                          const SizedBox(height: 12),
-                          _buildTextField(controller: _nombreController, icon: Icons.person_outline, hint: 'Nombre...'),
-                          const SizedBox(height: 12),
-                          _buildTextField(controller: _apellidoController, icon: Icons.person_outline, hint: 'Apellido...'),
-                          const SizedBox(height: 12),
-                          _buildTextField(controller: _correoController, icon: Icons.email_outlined, hint: 'Correo Electrónico...', keyboardType: TextInputType.emailAddress),
-                          const SizedBox(height: 12),
-                          _buildTextField(controller: _telefonoController, icon: Icons.phone_outlined, hint: 'Teléfono...', keyboardType: TextInputType.phone),
-                          const SizedBox(height: 12),
-                          _buildTextField(controller: _pesoController, icon: Icons.monitor_weight_outlined, hint: 'Peso (kg)...', keyboardType: TextInputType.number),
-                          const SizedBox(height: 12),
-                          _buildTextField(controller: _alturaController, icon: Icons.height_outlined, hint: 'Altura (cm)...', keyboardType: TextInputType.number),
-                          const SizedBox(height: 12),
-                          _buildTextField(controller: _edadController, icon: Icons.cake_outlined, hint: 'Edad...', keyboardType: TextInputType.number),
-                          const SizedBox(height: 12),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            _buildTextField(controller: _cedulaController, icon: Icons.card_membership, hint: 'Documento De Identidad...', keyboardType: TextInputType.number),
+                            const SizedBox(height: 12),
+                            _buildTextField(controller: _nombreController, icon: Icons.person_outline, hint: 'Nombre...'),
+                            const SizedBox(height: 12),
+                            _buildTextField(controller: _apellidoController, icon: Icons.person_outline, hint: 'Apellido...'),
+                            const SizedBox(height: 12),
+                            _buildTextField(controller: _correoController, icon: Icons.email_outlined, hint: 'Correo Electrónico...', keyboardType: TextInputType.emailAddress),
+                            const SizedBox(height: 12),
+                            _buildTextField(controller: _telefonoController, icon: Icons.phone_outlined, hint: 'Teléfono...', keyboardType: TextInputType.phone),
+                            const SizedBox(height: 12),
+                            _buildTextField(controller: _municipioController, icon: Icons.location_city_outlined, hint: 'Municipio donde vives (Ej: Garzón)...'),
+                            const SizedBox(height: 12),
+                            _buildTextField(controller: _direccionController, icon: Icons.home_outlined, hint: 'Barrio, vereda o dirección...'),
+                            const SizedBox(height: 12),
+                            _buildTextField(controller: _pesoController, icon: Icons.monitor_weight_outlined, hint: 'Peso (kg)...', keyboardType: TextInputType.number),
+                            const SizedBox(height: 12),
+                            _buildTextField(controller: _alturaController, icon: Icons.height_outlined, hint: 'Altura (cm)...', keyboardType: TextInputType.number),
+                            const SizedBox(height: 12),
+                            _buildTextField(controller: _edadController, icon: Icons.cake_outlined, hint: 'Edad...', keyboardType: TextInputType.number),
+                            const SizedBox(height: 12),
 
-                          // CONTRASEÑA
-                          TextField(
-                            controller: _passwordController,
-                            obscureText: _obscurePassword,
-                            style: EstiloTexto.campoTexto,
-                            decoration: InputDecoration(
-                              prefixIcon: const Icon(Icons.lock_outline, color: Colors.white70),
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                                  color: Colors.white70,
+                            // CONTRASEÑA
+                            TextFormField(
+                              controller: _passwordController,
+                              obscureText: _obscurePassword,
+                              style: EstiloTexto.campoTexto,
+                              decoration: InputDecoration(
+                                prefixIcon: const Icon(Icons.lock_outline, color: Colors.white70),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                                    color: Colors.white70,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _obscurePassword = !_obscurePassword;
+                                    });
+                                  },
                                 ),
-                                onPressed: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
-                                },
+                                hintText: 'Contraseña...',
+                                hintStyle: EstiloTexto.hintTexto,
+                                filled: true,
+                                fillColor: Colors.black,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide.none,
+                                ),
                               ),
-                              hintText: 'Contraseña...',
-                              hintStyle: EstiloTexto.hintTexto,
-                              filled: true,
-                              fillColor: Colors.black,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide.none,
+                              validator: (val) {
+                                if (val == null || val.isEmpty) {
+                                  return 'Por favor ingresa una contraseña';
+                                }
+                                if (!_tieneMinimo8 || !_tieneMayuscula || !_tieneNumero || !_tieneSimbolo) {
+                                  return 'La contraseña no cumple con todos los requisitos';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 8),
+
+                            // INDICADORES EN TIEMPO REAL
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildRequisitoItem('Mínimo 8 caracteres', _tieneMinimo8),
+                                  _buildRequisitoItem('Al menos una letra mayúscula', _tieneMayuscula),
+                                  _buildRequisitoItem('Al menos un número', _tieneNumero),
+                                  _buildRequisitoItem('Al menos un símbolo especial', _tieneSimbolo),
+                                ],
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 12),
+                            const SizedBox(height: 12),
 
-                          // CONFIRMAR CONTRASEÑA
-                          TextField(
-                            controller: _confirmPasswordController,
-                            obscureText: _obscureConfirmPassword,
-                            style: EstiloTexto.campoTexto,
-                            decoration: InputDecoration(
-                              prefixIcon: const Icon(Icons.lock_outline, color: Colors.white70),
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
-                                  color: Colors.white70,
+                            // CONFIRMAR CONTRASEÑA
+                            TextFormField(
+                              controller: _confirmPasswordController,
+                              obscureText: _obscureConfirmPassword,
+                              style: EstiloTexto.campoTexto,
+                              decoration: InputDecoration(
+                                prefixIcon: const Icon(Icons.lock_outline, color: Colors.white70),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                                    color: Colors.white70,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _obscureConfirmPassword = !_obscureConfirmPassword;
+                                    });
+                                  },
                                 ),
-                                onPressed: () {
-                                  setState(() {
-                                    _obscureConfirmPassword = !_obscureConfirmPassword;
-                                  });
-                                },
+                                hintText: 'Confirmar contraseña...',
+                                hintStyle: EstiloTexto.hintTexto,
+                                filled: true,
+                                fillColor: Colors.black,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide.none,
+                                ),
                               ),
-                              hintText: 'Confirmar contraseña...',
-                              hintStyle: EstiloTexto.hintTexto,
-                              filled: true,
-                              fillColor: Colors.black,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide.none,
-                              ),
+                              validator: (val) {
+                                if (val == null || val.isEmpty) {
+                                  return 'Por favor confirma tu contraseña';
+                                }
+                                if (val != _passwordController.text) {
+                                  return 'Las contraseñas no coinciden';
+                                }
+                                return null;
+                              },
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 25),
@@ -361,6 +445,29 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide.none,
         ),
+      ),
+    );
+  }
+
+  Widget _buildRequisitoItem(String texto, bool cumple) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: Row(
+        children: [
+          Icon(
+            cumple ? Icons.check_circle : Icons.radio_button_unchecked,
+            color: cumple ? AppColors.verdePrimario : Colors.grey,
+            size: 14,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            texto,
+            style: TextStyle(
+              color: cumple ? AppColors.verdePrimario : Colors.grey,
+              fontSize: 11,
+            ),
+          ),
+        ],
       ),
     );
   }

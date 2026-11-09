@@ -1,17 +1,215 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
-import 'package:frontend/pantallas/administrador/historia_gym.dart';
+import 'package:frontend/pantallas/historia_gym.dart';
 import 'package:frontend/pantallas/cliente/menuLateral/progreso/progreso.dart';
 import 'package:frontend/pantallas/cliente/menuLateral/reglas_y_horarios.dart';
-import 'package:frontend/pantallas/cliente/mis_membresias.dart';
+import 'package:frontend/pantallas/cliente/menuLateral/mis_membresias.dart';
 import 'package:frontend/registro-recuperar/Login.dart';
+import 'package:frontend/models/membresia_model.dart';
+import 'package:frontend/models/perfil_model.dart';
+import 'package:frontend/services/auth_service.dart'; // SessionService
+import 'package:frontend/services/membresia_service.dart';
+import 'package:frontend/services/perfil_cache.dart';
+import 'package:frontend/services/perfil_service.dart';
 import '../../../pantallas/cliente/menuLateral/entrenamiento_screen.dart';
 
-class MenuLateral extends StatelessWidget {
+/// Datos del menú guardados en memoria.
+/// Flutter construye el menú de nuevo cada vez que se abre; sin esto, cada apertura volvía a
+/// pedir el perfil y la membresía al servidor y se veía vacío hasta que llegaba la respuesta.
+class _CacheMenu {
+  static int? idUsuario;
+  static MembresiaModel? membresia;
+  static bool membresiaCargada = false;
+  static bool errorMembresia = false;
+  static Future<void>? _enCurso;
+
+  static void limpiar() {
+    idUsuario = null;
+    PerfilCache.limpiar();
+    membresia = null;
+    membresiaCargada = false;
+    errorMembresia = false;
+  }
+
+  /// Pide perfil y membresía al servidor y actualiza lo guardado.
+  /// Si ya hay una carga en curso no lanza otra. Si cambió el usuario, descarta lo del anterior.
+  static Future<void> actualizar() {
+    final actual = SessionService.idUsuario;
+    if (idUsuario != actual) {
+      limpiar();
+      idUsuario = actual;
+    }
+    return _enCurso ??= _cargar().whenComplete(() => _enCurso = null);
+  }
+
+  static Future<void> _cargar() async {
+    final id = SessionService.idUsuario;
+
+    await Future.wait([
+      () async {
+        if (id == null) return;
+        try {
+          final r = await PerfilService.obtenerPerfil(id);
+          if (idUsuario != id) return; // cambió la sesión mientras cargaba
+          if (r['success'] == true) PerfilCache.guardar(r['perfil'] as PerfilModel);
+        } catch (_) {
+          // Sin conexión: el menú se queda con el nombre de la sesión y el ícono
+        }
+      }(),
+      () async {
+        try {
+          final m = await MembresiaService.obtenerMiMembresia();
+          if (idUsuario != id) return;
+          membresia = m;
+          errorMembresia = false;
+        } catch (_) {
+          if (idUsuario != id) return;
+          // Si ya había datos guardados se siguen mostrando; el error solo se marca si no hay nada
+          if (membresia == null) errorMembresia = true;
+        }
+        membresiaCargada = true;
+      }(),
+    ]);
+  }
+}
+
+class MenuLateral extends StatefulWidget {
   const MenuLateral({super.key});
+
+  /// Carga perfil y membresía en segundo plano. Llámalo desde el home del cliente
+  /// (por ejemplo en su initState) para que, cuando se abra el menú, ya esté todo listo.
+  static Future<void> precargar() => _CacheMenu.actualizar().catchError((_) {});
+
+  /// Borra lo guardado. Se llama al cerrar sesión para que otro usuario no vea datos del anterior.
+  static void limpiarCache() => _CacheMenu.limpiar();
+
+  @override
+  State<MenuLateral> createState() => _MenuLateralState();
+}
+
+class _MenuLateralState extends State<MenuLateral> {
+  // Perfil del usuario (nombre completo y foto, vienen del backend)
+  PerfilModel? get _perfil => PerfilCache.perfil;
+
+  // Membresía real del cliente (viene del backend)
+  MembresiaModel? get _membresia => _CacheMenu.membresia;
+  bool get _cargandoMembresia => !_CacheMenu.membresiaCargada;
+  bool get _errorMembresia => _CacheMenu.errorMembresia;
+
+  @override
+  void initState() {
+    super.initState();
+    _refrescar();
+  }
+
+  // El menú se muestra de una vez con lo que haya guardado y se actualiza cuando llegan los datos nuevos
+  Future<void> _refrescar() async {
+    await _CacheMenu.actualizar();
+    if (mounted) setState(() {});
+  }
+
+  // Abre la foto de perfil en pantalla completa; se puede hacer zoom con dos dedos
+  void _verFotoAmpliada() {
+    final foto = _fotoPerfil;
+    if (foto == null) return;
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (dialogContext) => Dialog.fullscreen(
+        backgroundColor: Colors.transparent,
+        child: Stack(
+          children: [
+            // Tocar fuera de la foto cierra el visor
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => Navigator.pop(dialogContext),
+              ),
+            ),
+            Center(
+              child: InteractiveViewer(
+                minScale: 1,
+                maxScale: 5,
+                child: Image.network(
+                  foto,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (context, child, progreso) {
+                    if (progreso == null) return child;
+                    return const SizedBox(
+                      height: 200,
+                      child: Center(
+                        child: CircularProgressIndicator(color: AppColors.verdePrimario),
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) => const Icon(
+                    Icons.broken_image_outlined,
+                    color: AppColors.grisClaro,
+                    size: 60,
+                  ),
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topRight,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: AppColors.blancoPuro, size: 28),
+                  onPressed: () => Navigator.pop(dialogContext),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Nombre y apellido del usuario (mientras carga el perfil, el nombre de la sesión)
+  String get _nombreUsuario {
+    final completo = _perfil?.nombreCompleto ?? '';
+    if (completo.isNotEmpty) return completo;
+    final nombre = SessionService.nombreUsuario.trim();
+    return nombre.isEmpty ? 'Usuario' : nombre;
+  }
+
+  // Foto de perfil (null si no tiene)
+  String? get _fotoPerfil => _perfil?.fotoPerfil;
+
+  // Texto principal de la tarjeta: Activa / Vencida / Inactiva / Sin membresía
+  String get _tituloMembresia {
+    if (_cargandoMembresia) return 'Cargando...';
+    if (_errorMembresia) return 'No disponible';
+    final m = _membresia;
+    if (m == null || m.estado.isEmpty) return 'Sin membresía';
+    return m.estado[0].toUpperCase() + m.estado.substring(1);
+  }
+
+  // Línea de abajo: fechas si está activa, o aviso si no tiene
+  String get _detalleMembresia {
+    if (_cargandoMembresia) return 'Consultando tu membresía';
+    if (_errorMembresia) return 'Toca para ver tu membresía';
+    final m = _membresia;
+    if (m == null) return 'No tienes una membresía registrada';
+    if (m.estado == 'activa') {
+      return 'Del ${m.fechaInicioFormateada} al ${m.fechaFinFormateada}';
+    }
+    return 'No tienes una membresía activa';
+  }
+
+  // Puntico de color: verde activa, rojo vencida/inactiva, gris sin membresía
+  Color? get _colorPuntoMembresia {
+    if (_cargandoMembresia || _errorMembresia) return null;
+    final m = _membresia;
+    if (m == null) return AppColors.grisMedio;
+    return m.estado == 'activa' ? Colors.green : Colors.redAccent;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final colorPunto = _colorPuntoMembresia;
+
     return Drawer(
       backgroundColor: AppColors.fondoNegro,
       child: SafeArea(
@@ -69,7 +267,7 @@ class MenuLateral extends StatelessWidget {
             ),
             const SizedBox(height: 15),
 
-            // 2. Tarjeta de Bienvenida con borde verde
+            // 2. Tarjeta del usuario con borde verde (foto de perfil y nombre)
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -79,32 +277,41 @@ class MenuLateral extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const CircleAvatar(
+                  GestureDetector(
+                    onTap: _fotoPerfil == null ? null : _verFotoAmpliada,
+                    child: CircleAvatar(
                     radius: 22,
                     backgroundColor: AppColors.grisMedio,
-                    child: Icon(Icons.person, color: AppColors.blancoPuro, size: 24),
+                    child: _fotoPerfil == null
+                        ? const Icon(Icons.person, color: AppColors.blancoPuro, size: 24)
+                        : ClipOval(
+                            child: Image.network(
+                              _fotoPerfil!,
+                              width: 44,
+                              height: 44,
+                              fit: BoxFit.cover,
+                              // Si la imagen no carga, se queda el ícono de siempre
+                              errorBuilder: (context, error, stackTrace) => const Icon(
+                                Icons.person,
+                                color: AppColors.blancoPuro,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                    ),
                   ),
                   const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      Text(
-                        '¡Bienvenido!',
-                        style: TextStyle(
-                          color: AppColors.verdePrimario,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
+                  Expanded(
+                    child: Text(
+                      _nombreUsuario,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.blancoPuro,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
                       ),
-                      Text(
-                        '(NOMBRE)',
-                        style: TextStyle(
-                          color: AppColors.blancoPuro,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ],
               ),
@@ -158,7 +365,7 @@ class MenuLateral extends StatelessWidget {
                 context,
                 MaterialPageRoute(builder: (context) =>  HorariosYReglasClienteScreen()),
               );
-            
+
             }),
 
             const Divider(color: AppColors.grisMedio, height: 25, thickness: 0.5),
@@ -175,13 +382,15 @@ class MenuLateral extends StatelessWidget {
             ),
             const SizedBox(height: 5),
             _buildMenuItem(Icons.logout, 'Cerrar sesión', () {
+              // Se borra lo guardado para que el siguiente usuario no vea datos de este
+              MenuLateral.limpiarCache();
               Navigator.push(
-                context, 
+                context,
                 MaterialPageRoute(
                   builder: (context)=> const LoginScreen()));
             }, isRed: true),
             const SizedBox(height: 20),
-           // 3. Tarjeta de Membresía Activa (Interactiva)
+           // 3. Tarjeta de Membresía (Interactiva, con datos reales del backend)
             InkWell(
               borderRadius: BorderRadius.circular(10), // Para que el efecto de toque respete los bordes redondeados
               onTap: () {
@@ -225,23 +434,25 @@ class MenuLateral extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Row(
-                            children: const [
+                            children: [
                               Text(
-                                'Activa',
-                                style: TextStyle(
+                                _tituloMembresia,
+                                style: const TextStyle(
                                   color: AppColors.blancoPuro,
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              SizedBox(width: 6),
-                              Icon(Icons.circle, color: Colors.green, size: 10),
+                              if (colorPunto != null) ...[
+                                const SizedBox(width: 6),
+                                Icon(Icons.circle, color: colorPunto, size: 10),
+                              ],
                             ],
                           ),
                           const SizedBox(height: 2),
-                          const Text(
-                            'Vence el 31/08/2026',
-                            style: TextStyle(
+                          Text(
+                            _detalleMembresia,
+                            style: const TextStyle(
                               color: AppColors.grisClaro,
                               fontSize: 10,
                             ),

@@ -4,7 +4,7 @@ import { supabase } from "../config/supabase.js";
 export const obtenerTodos = async () => {
   const { data, error } = await supabase
     .from("usuarios")
-    .select("id_usuario, nombre, correo, telefono, cedula, rol, fecha_registro,is_active")
+    .select("id_usuario, nombre, correo, telefono, cedula, rol, fecha_registro,is_active,isVerified,municipio, direccion")
     .order("id_usuario", { ascending: true });
   return { data, error };
 };
@@ -13,7 +13,7 @@ export const obtenerTodos = async () => {
 export const obtenerUsuarioPorId = async (id) => {
   const { data, error } = await supabase
     .from("usuarios")
-    .select("id_usuario, nombre, apellido, correo, telefono, cedula, edad, peso, altura, rol, fecha_registro, is_active")
+    .select("id_usuario, nombre, apellido, correo, telefono, cedula, edad, peso, altura, rol, fecha_registro, is_active, isVerified,municipio, direccion")
     .eq("id_usuario", id)
     .maybeSingle();
   return { data, error };
@@ -42,7 +42,9 @@ export const crearUser = async (
   contraseñaHasheada,
   rol,
   codigoVerificacion,
-  codigoVerificacionExpiracion
+  codigoVerificacionExpiracion,
+  municipio,
+  direccion
 ) => {
   const { data, error } = await supabase
     .from("usuarios")
@@ -59,8 +61,11 @@ export const crearUser = async (
         rol,
         contraseña: contraseñaHasheada,
         isVerified: false,
+        is_active: rol !== "cliente",
         codigoVerificacion,
-        codigoVerificacionExpiracion
+        codigoVerificacionExpiracion,
+        municipio,
+        direccion
       }
     ])
     .select("id_usuario, nombre, apellido, correo, rol, fecha_registro")
@@ -75,7 +80,7 @@ export const actualizarUsuario = async (id, campos) => {
     .from("usuarios")
     .update(campos)
     .eq("id_usuario", id)
-    .select("id_usuario, nombre, apellido, correo, telefono, cedula, edad, peso, altura, rol")
+    .select("id_usuario, nombre, apellido, correo, telefono, cedula, edad, peso, altura, rol, is_active, municipio, direccion")
     .maybeSingle();
   return { data, error };
 };

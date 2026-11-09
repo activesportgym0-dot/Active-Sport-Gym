@@ -8,14 +8,18 @@ import 'package:frontend/componentes/cliente/rutina/semanal/selector_dias_semana
 import 'package:frontend/componentes/cliente/rutina/semanal/bloque_primer_ejercicio.dart';
 import 'package:frontend/pantallas/cliente/rutina/detalle_plan_semanal_screen.dart';
 import 'package:frontend/pantallas/cliente/rutina/diaria/crear_rutina_diaria_screen.dart';
-import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
+import 'package:frontend/componentes/cliente/burbuja_mini_chat_modal.dart';
 import 'package:frontend/models/ejercicio_catalogo_model.dart';
+import 'package:frontend/models/rutina_guardada_model.dart';
 import 'package:frontend/models/rutina_model.dart';
 import 'package:frontend/services/ejercicio_service.dart';
 import 'package:frontend/services/rutina_service.dart';
 
 class CrearRutinaSemanalScreen extends StatefulWidget {
-  const CrearRutinaSemanalScreen({super.key});
+  /// Si viene una rutina guardada, la pantalla funciona en modo EDICIÓN (PUT /rutinas/:id).
+  final RutinaGuardadaModel? rutinaEditar;
+
+  const CrearRutinaSemanalScreen({super.key, this.rutinaEditar});
 
   @override
   State<CrearRutinaSemanalScreen> createState() => _CrearRutinaSemanalScreenState();
@@ -55,9 +59,30 @@ class _CrearRutinaSemanalScreenState extends State<CrearRutinaSemanalScreen> {
   bool _cargandoCatalogo = true;
   bool _guardando = false;
 
+  bool get _editando => widget.rutinaEditar != null;
+
   @override
   void initState() {
     super.initState();
+
+    // Modo edición: se arma la estructura semanal con los días que ya tiene el plan
+    final rutina = widget.rutinaEditar;
+    if (rutina != null) {
+      _nombrePlanController.text = rutina.nombre;
+      final clavesConDatos = <String>[];
+      for (final dia in rutina.dias) {
+        final clave = dia.claveSemana;
+        if (clave == null) continue;
+        _estructuraSemanal[clave] = {
+          'nombre_rutina': dia.nombreDia,
+          'ejercicios': dia.ejerciciosPantalla,
+        };
+        clavesConDatos.add(clave);
+      }
+      // Se abre en el primer día que tenga ejercicios
+      if (clavesConDatos.isNotEmpty) _diaSeleccionado = clavesConDatos.first;
+    }
+
     _actualizarControladorDia();
     _cargarCatalogo();
   }
@@ -80,9 +105,34 @@ class _CrearRutinaSemanalScreenState extends State<CrearRutinaSemanalScreen> {
       _cargandoCatalogo = false;
     });
 
+    if (_editando) _completarImagenesDesdeCatalogo();
+
     if (_catalogo.isEmpty) {
       _mostrarMensaje('No se pudo cargar el catálogo de ejercicios.', exito: false);
     }
+  }
+
+  // Modo editar: la rutina guardada puede no traer la foto del ejercicio, así que se toma
+  // del catálogo ya cargado (la misma foto que se ve al crear la rutina).
+  void _completarImagenesDesdeCatalogo() {
+    final fotos = <int, String>{};
+    for (final item in _catalogo) {
+      final m = item.toMapaSeleccion();
+      final id = int.tryParse(m['id_ejercicio'].toString());
+      final foto = (m['imagePath'] ?? '').toString();
+      if (id != null && foto.isNotEmpty) fotos[id] = foto;
+    }
+
+    setState(() {
+      for (final dia in _estructuraSemanal.values) {
+        for (final ej in (dia['ejercicios'] as List)) {
+          final id = int.tryParse(ej['id_ejercicio'].toString());
+          if (id != null && (ej['imagePath'] ?? '').toString().isEmpty && fotos.containsKey(id)) {
+            ej['imagePath'] = fotos[id];
+          }
+        }
+      }
+    });
   }
 
   void _mostrarMensaje(String mensaje, {required bool exito}) {
@@ -132,7 +182,7 @@ class _CrearRutinaSemanalScreenState extends State<CrearRutinaSemanalScreen> {
     });
   }
 
-  // POST /rutinas (tipo semanal). Solo se envían los días que tienen ejercicios.
+  // POST /rutinas (crear) o PUT /rutinas/:id (editar). Solo se envían los días que tienen ejercicios.
   Future<void> _guardarPlanSemanalBackend() async {
     if (_guardando) return;
 
@@ -181,7 +231,9 @@ class _CrearRutinaSemanalScreenState extends State<CrearRutinaSemanalScreen> {
     }
 
     setState(() => _guardando = true);
-    final resultado = await RutinaService.crearRutina(rutina);
+    final resultado = _editando
+        ? await RutinaService.editarRutina(widget.rutinaEditar!.idRutina, rutina)
+        : await RutinaService.crearRutina(rutina);
     if (!mounted) return;
     setState(() => _guardando = false);
 
@@ -191,7 +243,14 @@ class _CrearRutinaSemanalScreenState extends State<CrearRutinaSemanalScreen> {
     }
     _mostrarMensaje(resultado['message'].toString(), exito: true);
 
+    // Editando: se vuelve a la pantalla anterior avisando que hubo cambios
+    if (_editando) {
+      Navigator.pop(context, true);
+      return;
+    }
+
     final Map<String, dynamic> payloadPlanSemanal = {
+      "id_rutina": resultado['id_rutina'],
       "nombre_plan": _nombrePlanController.text.trim(),
       "tipo": _tipoRutina,
       "fecha": _fechaController.text.isNotEmpty ? _fechaController.text : null,
@@ -236,7 +295,7 @@ class _CrearRutinaSemanalScreenState extends State<CrearRutinaSemanalScreen> {
             icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.verdePrimario, size: 20),
             onPressed: _manejarIntentoCancelar,
           ),
-          title: Text('CREAR RUTINA', style: EstiloTexto.tekoTituloSeccion),
+          title: Text(_editando ? 'EDITAR RUTINA' : 'CREAR RUTINA', style: EstiloTexto.tekoTituloSeccion),
           actions: [
             Padding(
               padding: const EdgeInsets.only(right: 16),
@@ -254,7 +313,7 @@ class _CrearRutinaSemanalScreenState extends State<CrearRutinaSemanalScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('CREA TU RUTINA', style: EstiloTexto.tekoSubtituloSeccion.copyWith(fontSize: 20)),
+                  Text(_editando ? 'EDITA TU RUTINA' : 'CREA TU RUTINA', style: EstiloTexto.tekoSubtituloSeccion.copyWith(fontSize: 20)),
                   Text('Personaliza tu entrenamiento', style: EstiloTexto.subtituloRoboto),
                   const SizedBox(height: 20),
 
@@ -267,12 +326,15 @@ class _CrearRutinaSemanalScreenState extends State<CrearRutinaSemanalScreen> {
                         value: 'diaria',
                         groupValue: _tipoRutina,
                         activeColor: AppColors.verdePrimario,
-                        onChanged: (val) {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(builder: (context) => const CrearRutinaDiariaScreen()),
-                          );
-                        },
+                        // En modo edición no se cambia el tipo de rutina
+                        onChanged: _editando
+                            ? null
+                            : (val) {
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => const CrearRutinaDiariaScreen()),
+                                );
+                              },
                       ),
                       const Text('Diaria', style: TextStyle(fontFamily: 'Roboto', color: Colors.white, fontSize: 13)),
                       const SizedBox(width: 20),
@@ -467,7 +529,7 @@ class _CrearRutinaSemanalScreenState extends State<CrearRutinaSemanalScreen> {
                                     height: 20,
                                     child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2),
                                   )
-                                : const Text('GUARDAR PLAN', style: TextStyle(fontFamily: 'Oswald', fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5)),
+                                : Text(_editando ? 'GUARDAR CAMBIOS' : 'GUARDAR PLAN', style: TextStyle(fontFamily: 'Oswald', fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5)),
                           ),
                         ),
                       ),

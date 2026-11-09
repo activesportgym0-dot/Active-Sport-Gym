@@ -13,6 +13,9 @@ class UserModel {
   final String rol;
   final bool isActive; // columna is_active (true = cuenta habilitada)
   final String? fechaRegistro;
+  final String? municipio; // dónde vive (ej. Garzón)
+  final String? direccion; // barrio, vereda o dirección
+  final bool isVerified; // columna isVerified (true = ya confirmó el correo)
   UserModel({
     this.idUsuario,
     required this.nombre,
@@ -28,6 +31,9 @@ class UserModel {
     this.rol = 'cliente', // 👈 Actualizado a 'cliente' para coincidir con tu backend
     this.isActive = true,
     this.fechaRegistro,
+    this.municipio,
+    this.direccion,
+    this.isVerified = true,
   });
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
@@ -45,6 +51,10 @@ class UserModel {
       // Si la columna viene vacía (null) se considera activa, igual que el valor por defecto
       isActive: json['is_active'] != false,
       fechaRegistro: json['fecha_registro']?.toString(),
+      municipio: json['municipio']?.toString(),
+      direccion: json['direccion']?.toString(),
+      // Si la columna viene vacía (null) se considera verificada
+      isVerified: json['isVerified'] != false,
     );
   }
 
@@ -63,6 +73,9 @@ class UserModel {
       'rol': rol,
       'activo': isActive,
       'fecha_registro': fechaRegistro,
+      'municipio': municipio,
+      'direccion': direccion,
+      'verificado': isVerified,
     };
   }
   Map<String, dynamic> toJson() {
@@ -78,6 +91,8 @@ class UserModel {
       'contraseña': password,
       'confirmarContrasena': confirmarContrasena ?? password,
       'rol': rol,
+      'municipio': municipio,
+      'direccion': direccion,
     };
   }
 }

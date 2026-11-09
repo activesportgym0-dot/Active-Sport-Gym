@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/componentes/administrador/gestionar%20usuarios/tarjeta_usuario_admin.dart';
-import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
+import 'package:frontend/componentes/cliente/burbuja_mini_chat_modal.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/componentes/fondo.dart';
 import 'package:frontend/pantallas/administrador/detalle_perfil_admin.dart';
@@ -19,6 +19,11 @@ class _GestionUsuariosAdminScreenState extends State<GestionUsuariosAdminScreen>
   List<Map<String, dynamic>> _usuarios = [];
   bool _isLoading = true;
   List<Map<String, dynamic>> _usuariosFiltrados = [];
+
+  // Filtro rápido: ver solo las cuentas inactivas (las nuevas esperan aquí a que las actives)
+  bool _soloInactivos = false;
+
+  int get _cantidadInactivos => _usuarios.where((u) => u['activo'] != true).length;
   @override
   void initState() {
     super.initState();
@@ -77,6 +82,7 @@ class _GestionUsuariosAdminScreenState extends State<GestionUsuariosAdminScreen>
 
     if (resultado['success'] == true) {
       _mostrarMensaje(resultado['message'].toString(), exito: true);
+      _filtrarUsuarios();
     } else {
       setState(() => usuario['activo'] = estadoAnterior);
       _mostrarMensaje(resultado['message'].toString(), exito: false);
@@ -99,7 +105,9 @@ class _GestionUsuariosAdminScreenState extends State<GestionUsuariosAdminScreen>
       _usuariosFiltrados = _usuarios.where((usuario) {
         final nombreCompleto = '${usuario['nombre']} ${usuario['apellido']}'.toLowerCase();
         final cedula = usuario['cedula'].toString();
-        return nombreCompleto.contains(query) || cedula.contains(query);
+        final coincideTexto = nombreCompleto.contains(query) || cedula.contains(query);
+        final coincideEstado = !_soloInactivos || usuario['activo'] != true;
+        return coincideTexto && coincideEstado;
       }).toList();
     });
   }
@@ -159,6 +167,46 @@ class _GestionUsuariosAdminScreenState extends State<GestionUsuariosAdminScreen>
                       borderSide: BorderSide(color: AppColors.verdePrimario),
                     ),
                   ),
+                ),
+              ),
+
+              // Filtro rápido: todos / inactivos (pendientes de activar)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Row(
+                  children: [
+                    ChoiceChip(
+                      label: Text('TODOS (${_usuarios.length})'),
+                      selected: !_soloInactivos,
+                      selectedColor: AppColors.verdePrimario,
+                      backgroundColor: AppColors.grisOscuro,
+                      labelStyle: TextStyle(
+                        color: !_soloInactivos ? AppColors.fondoNegro : AppColors.grisClaro,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      onSelected: (_) {
+                        setState(() => _soloInactivos = false);
+                        _filtrarUsuarios();
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: Text('INACTIVOS ($_cantidadInactivos)'),
+                      selected: _soloInactivos,
+                      selectedColor: Colors.redAccent,
+                      backgroundColor: AppColors.grisOscuro,
+                      labelStyle: TextStyle(
+                        color: _soloInactivos ? AppColors.blancoPuro : AppColors.grisClaro,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      onSelected: (_) {
+                        setState(() => _soloInactivos = true);
+                        _filtrarUsuarios();
+                      },
+                    ),
+                  ],
                 ),
               ),
               Expanded(

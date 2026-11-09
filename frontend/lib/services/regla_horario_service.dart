@@ -23,7 +23,11 @@ class ReglaHorarioService {
         'Authorization': 'Bearer ${SessionService.token}',
       };
 
-  // CONSULTA (cualquier usuario con sesión: la pueden usar admin y cliente)
+  // ==========================================================================
+  // ADMINISTRADOR
+  // (la consulta general también la usa el cliente a través de las funciones
+  //  de la sección "FUNCIONES DEL CLIENTE" de más abajo)
+  // ==========================================================================
 
   /// GET /reglas-horarios -> todas las reglas y horarios.
   /// Lanza una excepción con el motivo real si el servidor responde con error.
@@ -48,8 +52,6 @@ class ReglaHorarioService {
       _mensajeError(response, 'No se pudieron cargar las reglas y horarios'),
     );
   }
-
-  // ADMINISTRADOR
 
   /// POST /reglas-horarios (los tres campos son obligatorios).
   static Future<Map<String, dynamic>> crearReglaHorario({
@@ -139,6 +141,31 @@ class ReglaHorarioService {
       };
     } catch (e) {
       return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  // ==========================================================================
+  // FUNCIONES DEL CLIENTE (solo lectura)
+  // Todo lo de arriba es del administrador. Lo de abajo lo usan las pantallas
+  // del cliente y reutiliza la misma consulta (GET /reglas-horarios), que solo
+  // exige token. No se necesita otro service ni otro model.
+  // ==========================================================================
+
+  /// Trae los horarios y las reglas ya separados para la pantalla del cliente.
+  /// No lanza excepciones: devuelve success + horarios + reglas, o success false + message.
+  static Future<Map<String, dynamic>> obtenerReglasHorariosCliente() async {
+    try {
+      final todos = await obtenerReglasHorarios();
+      return {
+        'success': true,
+        'horarios': ReglaHorarioModel.soloHorarios(todos),
+        'reglas': ReglaHorarioModel.soloReglas(todos),
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': e.toString().replaceFirst('Exception: ', ''),
+      };
     }
   }
 

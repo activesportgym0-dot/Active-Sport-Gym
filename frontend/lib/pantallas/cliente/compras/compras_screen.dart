@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
-import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
+import 'package:frontend/componentes/cliente/burbuja_mini_chat_modal.dart';
 import 'package:frontend/componentes/cliente/entrenar/barra_busqueda_cliente.dart';
 import 'package:frontend/componentes/administrador/entrenar/category_chip.dart';
 import 'package:frontend/componentes/administrador/entrenar/modal_seleccion_multiples_categorias.dart';

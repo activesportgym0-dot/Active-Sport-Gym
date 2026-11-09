@@ -147,6 +147,60 @@ class MembresiaService {
     );
   }
 
+  // CLIENTE
+
+  /// GET /membresias/mi-membresia -> la membresía actual del cliente (null si nunca ha tenido).
+  /// El backend responde con la membresía, o con {mensaje, membresia: null} si no hay ninguna.
+  /// Lanza una excepción con el motivo real si el servidor responde con error.
+  static Future<MembresiaModel?> obtenerMiMembresia() async {
+    if (!_haySesion) throw Exception(_sinSesion);
+
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}$_rutaMembresias/mi-membresia'),
+      headers: _headersJson,
+    );
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map) return null;
+      if (decoded.containsKey('membresia') && decoded['membresia'] == null) return null;
+      return MembresiaModel.fromJson(Map<String, dynamic>.from(decoded));
+    }
+
+    throw Exception(
+      _mensaje(
+        _decodificarRespuesta(response.body),
+        'No se pudo consultar tu membresía (${response.statusCode})',
+      ),
+    );
+  }
+
+  /// GET /membresias/mi-historial -> todas las membresías del cliente, la más reciente primero.
+  static Future<List<MembresiaModel>> obtenerMiHistorial() async {
+    if (!_haySesion) throw Exception(_sinSesion);
+
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}$_rutaMembresias/mi-historial'),
+      headers: _headersJson,
+    );
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! List) return [];
+      return decoded
+          .whereType<Map>()
+          .map((m) => MembresiaModel.fromJson(Map<String, dynamic>.from(m)))
+          .toList();
+    }
+
+    throw Exception(
+      _mensaje(
+        _decodificarRespuesta(response.body),
+        'No se pudo cargar tu historial de membresías (${response.statusCode})',
+      ),
+    );
+  }
+
   // AUXILIARES PRIVADOS
 
   /// El backend de membresías responde con 'error' (fallo) o 'mensaje' (éxito).

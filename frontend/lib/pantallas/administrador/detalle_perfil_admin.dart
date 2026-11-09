@@ -5,7 +5,7 @@ import 'package:frontend/componentes/administrador/membresia/tarjeta_historial_a
 import 'package:frontend/componentes/administrador/membresia/control_membresia_admin.dart';
 
 import 'package:frontend/pantallas/administrador/consultarHistorialMembresias.dart';
-import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
+import 'package:frontend/componentes/cliente/burbuja_mini_chat_modal.dart';
 import 'package:frontend/models/membresia_model.dart';
 import 'package:frontend/models/perfil_model.dart';
 import 'package:frontend/services/auth_service.dart';
@@ -324,6 +324,148 @@ class _DetallePerfilAdminScreenState extends State<DetallePerfilAdminScreen> {
     }
   }
 
+  // Rol actual de la cuenta ('admin' o 'cliente')
+  String get _rolActual => (_perfil?.rol ?? widget.usuario['rol'] ?? '').toString();
+
+  bool get _esMiPropiaCuenta => _idUsuario != null && _idUsuario == SessionService.idUsuario;
+
+  void _confirmarCambioRol() {
+    final volverAdmin = _rolActual != 'admin';
+    final nuevoRol = volverAdmin ? 'admin' : 'cliente';
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.grisOscuro,
+        title: Text(
+          volverAdmin ? 'Volver administrador' : 'Quitar administrador',
+          style: const TextStyle(color: AppColors.blancoPuro, fontFamily: 'Oswald'),
+        ),
+        content: Text(
+          volverAdmin
+              ? '$_nombreCompleto tendrá los mismos permisos que tú: podrá activar y desactivar cuentas, cambiar roles, eliminar usuarios y gestionar todo el gimnasio. Hazlo solo con alguien de confianza.\n\n¿Deseas continuar?'
+              : '$_nombreCompleto dejará de ser administrador y volverá a ser cliente.\n\n¿Deseas continuar?',
+          style: const TextStyle(color: AppColors.grisClaro, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar', style: TextStyle(color: AppColors.grisClaro)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _cambiarRol(nuevoRol);
+            },
+            child: Text(
+              volverAdmin ? 'Volver administrador' : 'Quitar administrador',
+              style: TextStyle(
+                color: volverAdmin ? AppColors.verdePrimario : Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _cambiarRol(String nuevoRol) async {
+    final id = _idUsuario;
+    if (id == null) return;
+
+    final resultado = await UsuarioService.cambiarRol(id, nuevoRol);
+    if (!mounted) return;
+
+    if (resultado['success'] == true) {
+      setState(() => widget.usuario['rol'] = nuevoRol);
+      await _cargarPerfil(id); // refresca el rol que se ve en el encabezado
+      if (!mounted) return;
+      _mostrarMensaje(
+        '${resultado['message']}. La persona debe cerrar sesión y volver a entrar para que el cambio le aplique.',
+        exito: true,
+      );
+    } else {
+      _mostrarMensaje(resultado['message'].toString(), exito: false);
+    }
+  }
+
+  // Tarjeta para volver administrador a un cliente (o quitarle ese rol)
+  Widget _buildSeccionRol() {
+    final esAdmin = _rolActual == 'admin';
+    final propia = _esMiPropiaCuenta;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'ROL DE LA CUENTA',
+          style: TextStyle(
+            color: AppColors.grisMedio,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.1,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.grisOscuro,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.grisMedio.withOpacity(0.3)),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                esAdmin ? Icons.admin_panel_settings : Icons.person_outline,
+                color: AppColors.verdePrimario,
+                size: 22,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      esAdmin ? 'ADMINISTRADOR' : 'CLIENTE',
+                      style: const TextStyle(
+                        color: AppColors.blancoPuro,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      propia
+                          ? 'No puedes cambiar tu propio rol.'
+                          : esAdmin
+                              ? 'Tiene los mismos permisos que tú.'
+                              : 'Puedes darle permisos de administrador.',
+                      style: const TextStyle(color: AppColors.grisClaro, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              if (!propia)
+                TextButton(
+                  onPressed: _confirmarCambioRol,
+                  child: Text(
+                    esAdmin ? 'QUITAR' : 'HACER ADMIN',
+                    style: TextStyle(
+                      color: esAdmin ? Colors.redAccent : AppColors.verdePrimario,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   String _valor(String? texto) => (texto == null || texto.trim().isEmpty) ? '—' : texto.trim();
 
   @override
@@ -439,6 +581,10 @@ class _DetallePerfilAdminScreenState extends State<DetallePerfilAdminScreen> {
                           const Divider(color: AppColors.grisMedio, height: 20),
                           _buildInfoRow(Icons.phone_outlined, 'Teléfono', _valor(_perfil?.telefono ?? user['telefono']?.toString())),
                           const Divider(color: AppColors.grisMedio, height: 20),
+                          _buildInfoRow(Icons.location_city_outlined, 'Municipio', _valor(user['municipio']?.toString())),
+                          const Divider(color: AppColors.grisMedio, height: 20),
+                          _buildInfoRow(Icons.home_outlined, 'Dirección (barrio o vereda)', _valor(user['direccion']?.toString())),
+                          const Divider(color: AppColors.grisMedio, height: 20),
                           _buildInfoRow(Icons.cake_outlined, 'Edad', _perfil?.edad != null ? '${_perfil!.edad} años' : '—'),
                           const Divider(color: AppColors.grisMedio, height: 20),
                           _buildInfoRow(Icons.monitor_weight_outlined, 'Peso', _perfil?.peso != null ? '${_perfil!.peso} kg' : '—'),
@@ -449,6 +595,9 @@ class _DetallePerfilAdminScreenState extends State<DetallePerfilAdminScreen> {
                         ],
                       ),
                     ),
+                    const SizedBox(height: 24),
+                    // Rol de la cuenta (volver administrador a un cliente)
+                    _buildSeccionRol(),
                     const SizedBox(height: 24),
                     // Control de Membresía
                     ControlMembresiaAdmin(

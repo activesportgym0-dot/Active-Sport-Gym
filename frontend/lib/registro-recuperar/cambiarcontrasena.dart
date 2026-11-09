@@ -14,7 +14,7 @@ class CambiarContrasena extends StatefulWidget {
 }
 
 class _CambiarContrasenaState extends State<CambiarContrasena> {
-  // Controladores solo para lo que el usuario debe digitar: el código y las nuevas contraseñas
+  // Controladores para lo que el usuario debe digitar
   final TextEditingController _codigoController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
@@ -22,6 +22,37 @@ class _CambiarContrasenaState extends State<CambiarContrasena> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
+
+  // Estados para validar los requisitos de la contraseña en tiempo real
+  bool _tieneMinimo8 = false;
+  bool _tieneMayuscula = false;
+  bool _tieneNumero = false;
+  bool _tieneSimbolo = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordController.addListener(_validarContrasenaEnTiempoReal);
+  }
+
+  @override
+  void dispose() {
+    _passwordController.removeListener(_validarContrasenaEnTiempoReal);
+    _codigoController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  void _validarContrasenaEnTiempoReal() {
+    final val = _passwordController.text;
+    setState(() {
+      _tieneMinimo8 = val.length >= 8;
+      _tieneMayuscula = RegExp(r'(?=.*[A-Z])').hasMatch(val);
+      _tieneNumero = RegExp(r'(?=.*[0-9])').hasMatch(val);
+      _tieneSimbolo = RegExp(r'(?=.*[!@#\$%^&*(),.?":{}|<>])').hasMatch(val);
+    });
+  }
 
   void _ejecutarCambioPassword() async {
     final codigo = _codigoController.text.trim();
@@ -42,9 +73,9 @@ class _CambiarContrasenaState extends State<CambiarContrasena> {
       return;
     }
 
-    if (nuevaPass.length < 6) {
+    if (!_tieneMinimo8 || !_tieneMayuscula || !_tieneNumero || !_tieneSimbolo) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('La contraseña debe tener al menos 6 caracteres')),
+        const SnackBar(content: Text('La contraseña no cumple con todos los requisitos de seguridad')),
       );
       return;
     }
@@ -53,7 +84,7 @@ class _CambiarContrasenaState extends State<CambiarContrasena> {
       _isLoading = true;
     });
 
-    // Usamos widget.correoRecibido de forma interna, sin que el usuario lo vea ni lo escriba de nuevo
+    // Usamos widget.correoRecibido de forma interna
     final resultado = await AuthService.cambiarContrasenaConCodigo(
       correo: widget.correoRecibido,
       codigo: codigo,
@@ -145,15 +176,15 @@ class _CambiarContrasenaState extends State<CambiarContrasena> {
                   // MENSAJE INDICANDO QUE EL CORREO YA ESTÁ TOMADO EN CUENTA
                   Text(
                     'Hemos enviado un código de 6 dígitos al correo:\n${widget.correoRecibido}',
-                      style: EstiloTexto.textoNormalRoboto.copyWith(
-                        fontSize: 14,
-                        color: Colors.white70,
-                      ),
+                    style: EstiloTexto.textoNormalRoboto.copyWith(
+                      fontSize: 14,
+                      color: Colors.white70,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 15),
 
-                  // TARJETA SEMITRANSPARENTE PARA EL FORMULARIO (Sin campo de correo)
+                  // TARJETA SEMITRANSPARENTE PARA EL FORMULARIO
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -213,6 +244,22 @@ class _CambiarContrasenaState extends State<CambiarContrasena> {
                               borderRadius: BorderRadius.circular(10),
                               borderSide: BorderSide.none,
                             ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        // INDICADORES EN TIEMPO REAL
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          alignment: Alignment.centerLeft,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildRequisitoItem('Mínimo 8 caracteres', _tieneMinimo8),
+                              _buildRequisitoItem('Al menos una letra mayúscula', _tieneMayuscula),
+                              _buildRequisitoItem('Al menos un número', _tieneNumero),
+                              _buildRequisitoItem('Al menos un símbolo especial', _tieneSimbolo),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 15),
@@ -277,6 +324,29 @@ class _CambiarContrasenaState extends State<CambiarContrasena> {
                   ),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRequisitoItem(String texto, bool cumple) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: Row(
+        children: [
+          Icon(
+            cumple ? Icons.check_circle : Icons.radio_button_unchecked,
+            color: cumple ? AppColors.verdePrimario : Colors.grey,
+            size: 14,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            texto,
+            style: TextStyle(
+              color: cumple ? AppColors.verdePrimario : Colors.grey,
+              fontSize: 11,
             ),
           ),
         ],

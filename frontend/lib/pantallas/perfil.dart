@@ -5,6 +5,7 @@ import 'package:frontend/componentes/fondo.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:frontend/models/perfil_model.dart';
 import 'package:frontend/services/auth_service.dart';
+import 'package:frontend/services/perfil_cache.dart';
 import 'package:frontend/services/perfil_service.dart';
 class PerfilScreen extends StatefulWidget {
   const PerfilScreen({super.key});
@@ -19,10 +20,12 @@ class _PerfilScreenState extends State<PerfilScreen> {
   final TextEditingController _correoController = TextEditingController();
   final TextEditingController _telefonoController = TextEditingController();
   final TextEditingController _cedulaController = TextEditingController();
+  final TextEditingController _municipioController = TextEditingController();
+  final TextEditingController _direccionController = TextEditingController();
   final TextEditingController _edadController = TextEditingController();
   final TextEditingController _pesoController = TextEditingController();
   final TextEditingController _alturaController = TextEditingController();
- 
+
   // Estos datos llegan del backend (GET /perfil/:id_usuario)
   String _rol = 'cliente';
   String? _fotoPerfil; // Viene de la tabla perfil (NULL por defecto)
@@ -33,6 +36,15 @@ class _PerfilScreenState extends State<PerfilScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Si el perfil ya se cargó antes (por el menú lateral o una visita anterior) se muestra de una vez
+    final guardado = PerfilCache.perfil;
+    if (guardado != null) {
+      _llenarCampos(guardado);
+      _isLoading = false;
+    }
+
+    // Igual se pide al servidor por si algo cambió, sin tapar lo que ya se está viendo
     _cargarPerfil();
   }
 
@@ -43,6 +55,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
     _correoController.dispose();
     _telefonoController.dispose();
     _cedulaController.dispose();
+    _municipioController.dispose();
+    _direccionController.dispose();
     _edadController.dispose();
     _pesoController.dispose();
     _alturaController.dispose();
@@ -58,34 +72,64 @@ class _PerfilScreenState extends State<PerfilScreen> {
     );
   }
 
+  // Pone los datos del perfil en los campos (llamarlo dentro de un setState, o en el initState)
+  void _llenarCampos(PerfilModel perfil) {
+    _nombreController.text = perfil.nombre;
+    _apellidoController.text = perfil.apellido;
+    _correoController.text = perfil.correo;
+    _telefonoController.text = perfil.telefono;
+    _cedulaController.text = perfil.cedula;
+    _municipioController.text = perfil.municipio ?? '';
+    _direccionController.text = perfil.direccion ?? '';
+    _edadController.text = perfil.edad?.toString() ?? '';
+    _pesoController.text = perfil.peso?.toString() ?? '';
+    _alturaController.text = perfil.altura?.toString() ?? '';
+    _rol = perfil.rol;
+    _fotoPerfil = perfil.fotoPerfil;
+  }
+
   Future<void> _cargarPerfil() async {
     final id = SessionService.idUsuario;
     if (id == null) {
-      _isLoading = false;
+      if (mounted) setState(() => _isLoading = false);
       return;
     }
+
+    // Si ya se está mostrando el perfil guardado, un fallo de la actualización no necesita avisarse
+    final yaHayDatosEnPantalla = !_isLoading;
 
     final resultado = await PerfilService.obtenerPerfil(id);
     if (!mounted) return;
 
     if (resultado['success'] == true) {
       final perfil = resultado['perfil'] as PerfilModel;
+      PerfilCache.guardar(perfil);
+
+      // Si el usuario ya empezó a editar, no se le borra lo que va escribiendo
+      if (_isEditing) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
       setState(() {
-        _nombreController.text = perfil.nombre;
-        _apellidoController.text = perfil.apellido;
-        _correoController.text = perfil.correo;
-        _telefonoController.text = perfil.telefono;
-        _cedulaController.text = perfil.cedula;
-        _edadController.text = perfil.edad?.toString() ?? '';
-        _pesoController.text = perfil.peso?.toString() ?? '';
-        _alturaController.text = perfil.altura?.toString() ?? '';
-        _rol = perfil.rol;
-        _fotoPerfil = perfil.fotoPerfil;
+        _llenarCampos(perfil);
         _isLoading = false;
       });
     } else {
       setState(() => _isLoading = false);
-      _mostrarMensaje('Error al cargar el perfil: ${resultado['message']}', exito: false);
+      if (!yaHayDatosEnPantalla) {
+        _mostrarMensaje('Error al cargar el perfil: ${resultado['message']}', exito: false);
+      }
+    }
+  }
+
+  // Deja el perfil guardado al día para que el menú lateral y esta pantalla muestren los datos nuevos
+  Future<void> _actualizarCache(int id) async {
+    try {
+      final r = await PerfilService.obtenerPerfil(id);
+      if (r['success'] == true) PerfilCache.guardar(r['perfil'] as PerfilModel);
+    } catch (_) {
+      // Si falla, el menú se actualiza solo la próxima vez que se abra
     }
   }
 
@@ -115,6 +159,12 @@ class _PerfilScreenState extends State<PerfilScreen> {
     }
     if (_cedulaController.text.trim().isNotEmpty) {
       campos['cedula'] = _cedulaController.text.trim();
+    }
+    if (_municipioController.text.trim().isNotEmpty) {
+      campos['municipio'] = _municipioController.text.trim();
+    }
+    if (_direccionController.text.trim().isNotEmpty) {
+      campos['direccion'] = _direccionController.text.trim();
     }
 
     if (_edadController.text.trim().isNotEmpty) {
@@ -151,6 +201,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
       SessionService.nombreUsuario = nombre; // mantiene el nombre de la sesión al día
       setState(() => _isEditing = false);
       _mostrarMensaje(resultado['message'].toString(), exito: true);
+      _actualizarCache(id);
     } else {
       // Se queda en modo edición para que pueda corregir el dato
       _mostrarMensaje(resultado['message'].toString(), exito: false);
@@ -183,6 +234,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
         resultado['message'].toString(),
         exito: resultado['success'] == true,
       );
+      if (resultado['success'] == true) _actualizarCache(id);
     } catch (e) {
       if (!mounted) return;
       setState(() => _guardando = false);
@@ -317,7 +369,11 @@ class _PerfilScreenState extends State<PerfilScreen> {
               _buildCampoEditable(Icons.phone_outlined, 'Teléfono', _telefonoController, keyboardType: TextInputType.phone),
               const SizedBox(height: 8),
               _buildCampoEditable(Icons.badge_outlined, 'Cédula', _cedulaController, keyboardType: TextInputType.number),
-             
+              const SizedBox(height: 8),
+              _buildCampoEditable(Icons.location_city_outlined, 'Municipio', _municipioController),
+              const SizedBox(height: 8),
+              _buildCampoEditable(Icons.home_outlined, 'Dirección (barrio o vereda)', _direccionController),
+
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -328,9 +384,9 @@ class _PerfilScreenState extends State<PerfilScreen> {
                   Expanded(child: _buildCampoEditable(Icons.height_outlined, 'Altura (m)', _alturaController, keyboardType: TextInputType.number)),
                 ],
               ),
-             
+
               const SizedBox(height: 30),
-             
+
               // Botón inferior si está editando
               if (_isEditing)
                 SizedBox(

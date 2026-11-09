@@ -4,8 +4,10 @@ import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
 import 'package:frontend/pantallas/cliente/rutina/iniciar-Rutina/detalle_rutina_screen.dart';
 import 'package:frontend/pantallas/cliente/menuLateral/historial_screen.dart';
-import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
+import 'package:frontend/componentes/cliente/burbuja_mini_chat_modal.dart';
 import 'package:frontend/pantallas/cliente/rutina/diaria/crear_rutina_diaria_screen.dart';
+import 'package:frontend/models/rutina_guardada_model.dart';
+import 'package:frontend/pantallas/cliente/rutina/acciones_rutina.dart';
 import 'package:frontend/services/rutina_service.dart';
 
 // Importa tus dos pantallas de detalle correspondientes
@@ -28,6 +30,9 @@ class _EntrenamientoScreenState extends State<EntrenamientoScreen> {
   List<Map<String, dynamic>> _rutinasSemanales = [];
   bool _isLoading = true;
 
+  // Rutinas tal como llegan del backend (hacen falta completas para poder editarlas)
+  List<RutinaGuardadaModel> _rutinas = [];
+
   @override
   void initState() {
     super.initState();
@@ -40,6 +45,7 @@ class _EntrenamientoScreenState extends State<EntrenamientoScreen> {
       final rutinas = await RutinaService.obtenerMisRutinas();
       if (!mounted) return;
       setState(() {
+        _rutinas = rutinas;
         _rutinasDiarias = rutinas.where((r) => r.esDiaria).map((r) => r.toMapaEntrenamiento()).toList();
         _rutinasSemanales = rutinas.where((r) => r.esSemanal).map((r) => r.toMapaEntrenamiento()).toList();
         _isLoading = false;
@@ -65,23 +71,88 @@ class _EntrenamientoScreenState extends State<EntrenamientoScreen> {
     if (mounted) _cargarRutinas();
   }
 
-  // 1. Abre el Detalle de Rutina Diaria
-  void _verDetalleDiario(Map<String, dynamic> rutinaData) {
-    Navigator.push(
+  // 1. Abre el Detalle de Rutina Diaria (si allá se edita o elimina, se recarga la lista)
+  Future<void> _verDetalleDiario(Map<String, dynamic> rutinaData) async {
+    final huboCambios = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (context) => DetalleRutinaDiariaScreen(rutinaData: rutinaData),
       ),
     );
+    if (huboCambios == true && mounted) _cargarRutinas();
   }
 
-  // 2. Abre el Detalle del Plan Semanal
-  void _verDetalleSemanal(Map<String, dynamic> planData) {
-    Navigator.push(
+  // 2. Abre el Detalle del Plan Semanal (si allá se edita o elimina, se recarga la lista)
+  Future<void> _verDetalleSemanal(Map<String, dynamic> planData) async {
+    final huboCambios = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (context) => DetallePlanSemanalScreen(planData: planData),
       ),
+    );
+    if (huboCambios == true && mounted) _cargarRutinas();
+  }
+
+  RutinaGuardadaModel? _modeloDe(Map<String, dynamic> rutina) {
+    for (final r in _rutinas) {
+      if (r.idRutina == rutina['id_rutina']) return r;
+    }
+    return null;
+  }
+
+  // PUT /rutinas/:id desde la pantalla de edición
+  Future<void> _editarRutina(Map<String, dynamic> rutina) async {
+    final guardado = await AccionesRutina.editar(
+      context,
+      idRutina: rutina['id_rutina'] as int,
+      rutina: _modeloDe(rutina),
+    );
+    if (guardado && mounted) _cargarRutinas();
+  }
+
+  // DELETE /rutinas/:id (pide confirmación)
+  Future<void> _eliminarRutina(Map<String, dynamic> rutina) async {
+    final eliminada = await AccionesRutina.eliminar(
+      context,
+      idRutina: rutina['id_rutina'] as int,
+      nombre: (rutina['nombre_rutina'] ?? rutina['nombre_plan'] ?? 'esta rutina').toString(),
+    );
+    if (eliminada && mounted) _cargarRutinas();
+  }
+
+  // Menú de tres puntos de cada rutina
+  Widget _menuRutina(Map<String, dynamic> rutina) {
+    return PopupMenuButton<String>(
+      color: AppColors.grisOscuro,
+      padding: EdgeInsets.zero,
+      icon: const Icon(Icons.more_vert, color: Colors.grey, size: 20),
+      tooltip: 'Opciones',
+      onSelected: (opcion) {
+        if (opcion == 'editar') _editarRutina(rutina);
+        if (opcion == 'eliminar') _eliminarRutina(rutina);
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem<String>(
+          value: 'editar',
+          child: Row(
+            children: [
+              Icon(Icons.edit_outlined, color: AppColors.verdePrimario, size: 18),
+              SizedBox(width: 8),
+              Text('Editar', style: TextStyle(color: Colors.white, fontSize: 13)),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'eliminar',
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+              SizedBox(width: 8),
+              Text('Eliminar', style: TextStyle(color: Colors.white, fontSize: 13)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -317,6 +388,8 @@ class _EntrenamientoScreenState extends State<EntrenamientoScreen> {
                     style: TextStyle(fontFamily: 'Oswald', color: AppColors.fondoNegro, fontSize: 11, fontWeight: FontWeight.bold),
                   ),
                 ),
+                const SizedBox(width: 2),
+                _menuRutina(rutina),
               ],
             ),
           ),
@@ -409,6 +482,8 @@ class _EntrenamientoScreenState extends State<EntrenamientoScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(width: 4),
+                _menuRutina(plan),
               ],
             ),
             subtitle: const Text(

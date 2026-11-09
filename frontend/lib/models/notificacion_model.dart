@@ -1,3 +1,5 @@
+/// MODELO ÚNICO DE NOTIFICACIONES: lo usan el administrador (crear y gestionar)
+/// y el cliente (ver y marcar como leídas), para no crear modelos separados.
 /// Notificación creada por el administrador (tabla notificaciones).
 /// Si [idUsuario] es null, la notificación es global (para todos los clientes).
 class NotificacionModel {
@@ -61,6 +63,8 @@ class NotificacionModel {
     );
   }
 
+  // ADMINISTRADOR
+
   /// Mapa con las mismas claves que usa TarjetaNotificacionAdmin
   /// (id, titulo, mensaje, tipo, destino, fecha), así la tarjeta no cambia.
   Map<String, dynamic> toMapaTarjeta() {
@@ -71,6 +75,37 @@ class NotificacionModel {
       'tipo': tipo,
       'destino': destino,
       'fecha': fechaFormateada,
+      'imagen_url': imagenUrl,
+    };
+  }
+
+  // CLIENTE
+
+  /// Copia de la notificación con la marca de leída cambiada (para actualizar la lista al instante).
+  NotificacionModel copyWith({bool? leida}) {
+    return NotificacionModel(
+      idNotificacion: idNotificacion,
+      idUsuario: idUsuario,
+      titulo: titulo,
+      mensaje: mensaje,
+      tipo: tipo,
+      imagenUrl: imagenUrl,
+      leida: leida ?? this.leida,
+      fecha: fecha,
+      destinatarioNombre: destinatarioNombre,
+    );
+  }
+
+  /// Mapa con las claves que usa TarjetaNotificacionCliente
+  /// (id, titulo, mensaje, tipo, fecha, leido, imagen_url), así la tarjeta conserva su diseño.
+  Map<String, dynamic> toMapaTarjetaCliente() {
+    return {
+      'id': idNotificacion,
+      'titulo': titulo,
+      'mensaje': mensaje,
+      'tipo': tipo,
+      'fecha': fechaFormateada,
+      'leido': leida,
       'imagen_url': imagenUrl,
     };
   }

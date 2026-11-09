@@ -13,6 +13,8 @@ class PerfilModel {
   final String rol;
   final String fechaRegistro;
   final String? fotoPerfil;
+  final String? municipio; // dónde vive (ej. Garzón)
+  final String? direccion; // barrio, vereda o dirección
 
   const PerfilModel({
     required this.idUsuario,
@@ -27,6 +29,8 @@ class PerfilModel {
     this.rol = 'cliente',
     this.fechaRegistro = '',
     this.fotoPerfil,
+    this.direccion,
+    this.municipio,
   });
 
   String get nombreCompleto => '$nombre $apellido'.trim();
@@ -65,6 +69,8 @@ class PerfilModel {
       rol: (json['rol'] ?? 'cliente').toString(),
       fechaRegistro: (json['fecha_registro'] ?? '').toString(),
       fotoPerfil: foto.isEmpty ? null : foto,
+      municipio: (json['municipio'] ?? '').toString(),
+      direccion: (json['direccion'] ?? '').toString(),
     );
   }
 }

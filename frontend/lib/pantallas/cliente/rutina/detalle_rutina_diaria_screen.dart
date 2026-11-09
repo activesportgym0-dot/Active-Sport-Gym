@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
+import 'package:frontend/pantallas/cliente/rutina/acciones_rutina.dart';
 
 
 class DetalleRutinaDiariaScreen extends StatelessWidget {
@@ -14,6 +15,8 @@ class DetalleRutinaDiariaScreen extends StatelessWidget {
     final String nombreRutina = rutinaData['nombre_rutina'] ?? 'Sin nombre';
     final String fecha = rutinaData['fecha'] ?? 'No especificada';
     final List ejercicios = rutinaData['ejercicios'] ?? [];
+    // Solo las rutinas ya guardadas traen id_rutina: con él se muestran Editar y Eliminar
+    final int? idRutina = int.tryParse(rutinaData['id_rutina'].toString());
 
     return Scaffold(
       backgroundColor: AppColors.fondoNegro,
@@ -25,6 +28,31 @@ class DetalleRutinaDiariaScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('RESUMEN DE RUTINA', style: EstiloTexto.tekoTituloSeccion),
+        actions: [
+          if (idRutina != null) ...[
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, color: AppColors.verdePrimario, size: 22),
+              tooltip: 'Editar rutina',
+              onPressed: () async {
+                final guardado = await AccionesRutina.editar(context, idRutina: idRutina);
+                // Vuelve a la lista avisando que hubo cambios para que se recargue
+                if (guardado && context.mounted) Navigator.pop(context, true);
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 22),
+              tooltip: 'Eliminar rutina',
+              onPressed: () async {
+                final eliminada = await AccionesRutina.eliminar(
+                  context,
+                  idRutina: idRutina,
+                  nombre: nombreRutina,
+                );
+                if (eliminada && context.mounted) Navigator.pop(context, true);
+              },
+            ),
+          ],
+        ],
       ),
       body: FondoApp(
         child: SafeArea(

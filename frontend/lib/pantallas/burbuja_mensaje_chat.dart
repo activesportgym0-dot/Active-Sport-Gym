@@ -4,8 +4,9 @@ import 'package:frontend/core/colores.dart';
 class BurbujaMensajeChat extends StatelessWidget {
   final String texto;
   final String hora;
-  final bool esUsuario; 
+  final bool esUsuario;
   final bool esAdmin;
+  final bool esError;
 
   const BurbujaMensajeChat({
     super.key,
@@ -13,6 +14,7 @@ class BurbujaMensajeChat extends StatelessWidget {
     required this.hora,
     required this.esUsuario,
     this.esAdmin = false,
+    this.esError = false,
   });
 
   @override
@@ -44,15 +46,20 @@ class BurbujaMensajeChat extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: esUsuario ? const Color(0xFF2C3B1E) : AppColors.grisOscuro,
+                // Un poco transparentes para que se vea el cristal del chat
+                color: esUsuario
+                    ? const Color(0xFF2C3B1E).withOpacity(0.9)
+                    : AppColors.grisOscuro.withOpacity(0.8),
                 borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(12),
-                  topRight: const Radius.circular(12),
-                  bottomLeft: Radius.circular(esUsuario ? 12 : 2),
-                  bottomRight: Radius.circular(esUsuario ? 2 : 12),
+                  topLeft: const Radius.circular(14),
+                  topRight: const Radius.circular(14),
+                  bottomLeft: Radius.circular(esUsuario ? 14 : 2),
+                  bottomRight: Radius.circular(esUsuario ? 2 : 14),
                 ),
                 border: Border.all(
-                  color: esUsuario ? AppColors.verdePrimario.withOpacity(0.4) : Colors.transparent,
+                  color: esError
+                      ? Colors.redAccent.withOpacity(0.6)
+                      : (esUsuario ? AppColors.verdePrimario.withOpacity(0.4) : Colors.transparent),
                 ),
               ),
               child: Column(
@@ -62,7 +69,7 @@ class BurbujaMensajeChat extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        esUsuario ? (esAdmin ? 'Admin' : 'User') : 'Bot',
+                        esUsuario ? (esAdmin ? 'Admin' : 'Tú') : 'Asistente',
                         style: TextStyle(
                           fontFamily: 'RobotoCondensed',
                           color: esUsuario ? AppColors.verdePrimario : Colors.grey.withOpacity(0.9),
@@ -70,24 +77,27 @@ class BurbujaMensajeChat extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        hora,
-                        style: TextStyle(
-                          fontFamily: 'RobotoCondensed',
-                          color: Colors.grey.withOpacity(0.7),
-                          fontSize: 10,
+                      if (hora.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          hora,
+                          style: TextStyle(
+                            fontFamily: 'RobotoCondensed',
+                            color: Colors.grey.withOpacity(0.7),
+                            fontSize: 10,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(
                     texto,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'Roboto',
-                      color: Colors.white,
+                      color: esError ? Colors.redAccent.shade100 : Colors.white,
                       fontSize: 13,
+                      height: 1.35,
                     ),
                   ),
                 ],

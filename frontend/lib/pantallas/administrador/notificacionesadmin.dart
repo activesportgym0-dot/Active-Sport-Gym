@@ -4,7 +4,7 @@ import 'package:frontend/componentes/administrador/notificacion/tarjeta_notifica
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
-import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
+import 'package:frontend/componentes/cliente/burbuja_mini_chat_modal.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:frontend/models/notificacion_model.dart';
 import 'package:frontend/services/notificacion_service.dart'; // 👈 Importación de la burbuja de la IA

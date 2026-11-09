@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
-import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
 import 'package:frontend/models/pedido_model.dart';
 import 'package:frontend/services/pedido_service.dart';
 class MisPedidosClienteScreen extends StatefulWidget {

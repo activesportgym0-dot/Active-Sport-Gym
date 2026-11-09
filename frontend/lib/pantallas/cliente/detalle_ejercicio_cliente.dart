@@ -4,64 +4,45 @@ import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
 import 'package:frontend/componentes/cliente/entrenar/detalle_seccion_card.dart';
 import 'package:frontend/pantallas/cliente/rutina/diaria/crear_rutina_diaria_screen.dart';
-import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
-
+import 'package:frontend/componentes/cliente/burbuja_mini_chat_modal.dart';
+import 'package:frontend/componentes/cliente/rutina/media_ejercicio.dart';
 class DetalleEjercicioClienteScreen extends StatefulWidget {
   final Map<String, dynamic> ejercicio;
-
   const DetalleEjercicioClienteScreen({
     super.key,
     required this.ejercicio,
   });
-
   @override
   State<DetalleEjercicioClienteScreen> createState() =>
       _DetalleEjercicioClienteScreenState();
 }
-
 class _DetalleEjercicioClienteScreenState
     extends State<DetalleEjercicioClienteScreen> {
-  final PageController _pageController = PageController();
-  int _paginaActual = 0;
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  Widget _construirMidia(String ruta) {
-    if (ruta.isEmpty) {
+  // En el detalle solo se muestra la demostración (el video). Cloudinary lo entrega como
+  // animación, igual que en la pantalla de entrenar (MediaEjercicio).
+  // La foto del ejercicio se usa al crear la rutina; aquí solo sirve de respaldo si el
+  // ejercicio no tiene video.
+  Widget _construirDemostracion(String gifUrl, String imagen) {
+    if (gifUrl.isNotEmpty) {
+      return Container(
+        color: Colors.white,
+        child: MediaEjercicio(url: gifUrl, fit: BoxFit.contain),
+      );
+    }
+    if (imagen.isEmpty) {
       return const Center(
         child: Icon(Icons.fitness_center, color: Colors.white54, size: 60),
       );
     }
-
-    if (ruta.startsWith('http://') || ruta.startsWith('https://')) {
-      return Image.network(
-        ruta,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (c, e, s) => const Center(
-          child: Icon(Icons.fitness_center, color: Colors.white54, size: 60),
-        ),
-      );
-    } else if (ruta.startsWith('assets/')) {
-      return Image.asset(
-        ruta,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (c, e, s) => const Center(
-          child: Icon(Icons.fitness_center, color: Colors.white54, size: 60),
-        ),
-      );
-    } else {
-      return const Center(
+    return Image.network(
+      imagen,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      errorBuilder: (c, e, s) => const Center(
         child: Icon(Icons.fitness_center, color: Colors.white54, size: 60),
-      );
-    }
+      ),
+    );
   }
 
   @override
@@ -71,21 +52,19 @@ class _DetalleEjercicioClienteScreenState
     final String gifUrl = widget.ejercicio['gif_url'] ?? '';
     final String maquina =
         widget.ejercicio['maquina'] ?? 'Peso libre / Sin máquina específica';
-
-    // Extracción limpia de categorías provenientes del Backend
+    // Extracción de categorías
     List<dynamic> relacionesCategorias =
         widget.ejercicio['ejercicio_categoria'] ?? [];
     List<String> nombresCategorias = [];
     for (var rel in relacionesCategorias) {
       if (rel['categoria_ejercicios'] != null &&
           rel['categoria_ejercicios']['nombre'] != null) {
-        nombresCategorias.add(rel['categoria_ejercicios']['nombre'].toString());
+        nombresCategorias.add(rel['categoria_ejercicios']['nombre']);
       }
     }
     final String categoriasTexto = nombresCategorias.isNotEmpty
         ? nombresCategorias.join(' • ')
         : 'SIN CATEGORÍA';
-
     final String descripcion =
         widget.ejercicio['descripcion'] ?? 'Sin descripción disponible.';
     final String comoSeHace = widget.ejercicio['instrucciones'] ??
@@ -98,16 +77,6 @@ class _DetalleEjercicioClienteScreenState
         'Inhala al bajar, exhala al hacer el esfuerzo.';
     final String ritmo = widget.ejercicio['ritmo_movimiento'] ??
         'Ejecuta el movimiento de forma fluida y controlada.';
-
-    final List<Map<String, String>> listaMidia = [
-      if (imagen.isNotEmpty) {'tipo': 'Imagen Principal', 'url': imagen},
-      if (gifUrl.isNotEmpty) {'tipo': 'Demostración (Video/GIF)', 'url': gifUrl},
-    ];
-
-    if (listaMidia.isEmpty) {
-      listaMidia.add({'tipo': 'Sin imagen', 'url': ''});
-    }
-
     return Scaffold(
       backgroundColor: AppColors.fondoNegro,
       appBar: AppBar(
@@ -133,104 +102,23 @@ class _DetalleEjercicioClienteScreenState
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    // 1. Visor de Imagen / Demostración con Desplazamiento
-                    Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Container(
-                          height: 220,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: AppColors.grisOscuro.withOpacity(0.6),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                                color: AppColors.verdePrimario.withOpacity(0.3)),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: PageView.builder(
-                              controller: _pageController,
-                              itemCount: listaMidia.length,
-                              onPageChanged: (index) {
-                                setState(() {
-                                  _paginaActual = index;
-                                });
-                              },
-                              itemBuilder: (context, index) {
-                                return _construirMidia(
-                                    listaMidia[index]['url']!);
-                              },
-                            ),
-                          ),
-                        ),
-                        // Flecha Izquierda
-                        if (_paginaActual > 0)
-                          Positioned(
-                            left: 8,
-                            child: CircleAvatar(
-                              backgroundColor: Colors.black.withOpacity(0.6),
-                              radius: 18,
-                              child: IconButton(
-                                padding: EdgeInsets.zero,
-                                icon: const Icon(Icons.arrow_back_ios_new,
-                                    color: AppColors.verdePrimario, size: 16),
-                                onPressed: () {
-                                  _pageController.previousPage(
-                                    duration: const Duration(milliseconds: 300),
-                                    curve: Curves.easeInOut,
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        // Flecha Derecha
-                        if (_paginaActual < listaMidia.length - 1)
-                          Positioned(
-                            right: 8,
-                            child: CircleAvatar(
-                              backgroundColor: Colors.black.withOpacity(0.6),
-                              radius: 18,
-                              child: IconButton(
-                                padding: EdgeInsets.zero,
-                                icon: const Icon(Icons.arrow_forward_ios,
-                                    color: AppColors.verdePrimario, size: 16),
-                                onPressed: () {
-                                  _pageController.nextPage(
-                                    duration: const Duration(milliseconds: 300),
-                                    curve: Curves.easeInOut,
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        // Etiqueta indicadora del tipo de media
-                        Positioned(
-                          bottom: 10,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.7),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                  color: AppColors.verdePrimario.withOpacity(0.5)),
-                            ),
-                            child: Text(
-                              listaMidia[_paginaActual]['tipo']!,
-                              style: const TextStyle(
-                                fontFamily: 'Roboto',
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                    // 1. Demostración en video del ejercicio
+                    Container(
+                      height: 220,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: AppColors.grisOscuro.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: AppColors.verdePrimario.withOpacity(0.3)),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: _construirDemostracion(gifUrl, imagen),
+                      ),
                     ),
                     const SizedBox(height: 20),
-
-                    // 2. Categorías y Máquina requerida
+                    // 2. Categorías y Máquina requerida estilo Badges
                     Row(
                       children: [
                         Expanded(
@@ -305,7 +193,6 @@ class _DetalleEjercicioClienteScreenState
                       ],
                     ),
                     const SizedBox(height: 16),
-
                     // 3. Secciones Informativas
                     DetalleSeccionCard(
                       titulo: 'Descripción',
@@ -340,8 +227,7 @@ class _DetalleEjercicioClienteScreenState
                   ],
                 ),
               ),
-
-              // 4. Botón Inferior para crear rutina
+              // 4. Botón Inferior
               Container(
                 padding: const EdgeInsets.all(16),
                 color: AppColors.fondoNegro,

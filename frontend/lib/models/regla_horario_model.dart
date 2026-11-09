@@ -38,6 +38,8 @@ class ReglaHorarioModel {
     return valor.trim();
   }
 
+  // Administrador
+
   /// Mapa con las claves que ya usan ReglaHorarioCard y ModalReglaHorario
   /// (id, tipo, titulo, contenido), así esos componentes no cambian.
   Map<String, dynamic> toMapaTarjeta() {
@@ -48,4 +50,16 @@ class ReglaHorarioModel {
       'contenido': contenido,
     };
   }
+
+  // ==========================================================================
+  // FUNCIONES DEL CLIENTE (solo lectura)
+  // Todo lo de arriba lo comparten admin y cliente. Lo de abajo es lo que usan
+  // las pantallas del cliente para mostrar horarios y reglas por separado.
+  // ==========================================================================
+
+  static List<ReglaHorarioModel> soloHorarios(List<ReglaHorarioModel> lista) =>
+      lista.where((r) => r.esHorario).toList();
+
+  static List<ReglaHorarioModel> soloReglas(List<ReglaHorarioModel> lista) =>
+      lista.where((r) => r.esRegla).toList();
 }

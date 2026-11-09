@@ -1,84 +1,113 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/componentes/fondo.dart';
-import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
+import 'package:frontend/componentes/cliente/burbuja_mini_chat_modal.dart';
+import 'package:frontend/models/membresia_model.dart';
+import 'package:frontend/services/membresia_service.dart';
 
-class MisMembresiasScreen extends StatelessWidget {
+class MisMembresiasScreen extends StatefulWidget {
   const MisMembresiasScreen({super.key});
 
-  // Datos simulados basados en lo que retorna tu backend (Membresía actual e historial)
-  final Map<String, dynamic> membresiaActual = const {
-    'estado': 'activa',
-    'fecha_inicio': '2026-10-01',
-    'fecha_fin': '2026-11-01',
-    'plan': 'Plan Mensual General',
-  };
+  @override
+  State<MisMembresiasScreen> createState() => _MisMembresiasScreenState();
+}
 
-  final List<Map<String, dynamic>> historialMembresias = const [
-    {
-      'id_membresia': 101,
-      'estado': 'activa',
-      'fecha_inicio': '2026-10-01',
-      'fecha_fin': '2026-11-01',
-      'plan': 'Plan Mensual General',
-    },
-    {
-      'id_membresia': 100,
-      'estado': 'vencida',
-      'fecha_inicio': '2026-09-01',
-      'fecha_fin': '2026-10-01',
-      'plan': 'Plan Mensual General',
-    },
-    {
-      'id_membresia': 99,
-      'estado': 'inactiva',
-      'fecha_inicio': '2026-08-01',
-      'fecha_fin': '2026-09-01',
-      'plan': 'Plan Quincenal',
-    },
-  ];
+class _MisMembresiasScreenState extends State<MisMembresiasScreen> {
+  bool _isLoading = true;
+  String? _error;
+
+  // Vienen del backend (ya no hay datos simulados). Cada una es el mapa que usa la pantalla.
+  Map<String, dynamic>? _membresiaActual;
+  List<Map<String, dynamic>> _historial = [];
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.fondoNegro,
-      appBar: AppBar(
-        backgroundColor: AppColors.fondoNegro,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.verdePrimario, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'MI MEMBRESÍA',
-          style: TextStyle(
-            fontFamily: 'Oswald',
-            fontSize: 16,
-            color: AppColors.verdePrimario,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.2,
-          ),
+  void initState() {
+    super.initState();
+    _cargarMembresias();
+  }
+
+  Future<void> _cargarMembresias() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final resultados = await Future.wait([
+        MembresiaService.obtenerMiMembresia(),
+        MembresiaService.obtenerMiHistorial(),
+      ]);
+      if (!mounted) return;
+
+      final actual = resultados[0] as MembresiaModel?;
+      final historial = resultados[1] as List<MembresiaModel>;
+
+      setState(() {
+        _membresiaActual = actual?.toMapaTarjetaCliente();
+        _historial = historial.map((m) => m.toMapaTarjetaCliente()).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      final texto = e.toString();
+      setState(() {
+        _error = texto.startsWith('Exception: ')
+            ? texto.substring('Exception: '.length)
+            : 'No se pudo conectar con el servidor. Revisa tu conexión.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Estado de error con opción de reintentar (solo aparece si falla la carga)
+  Widget _construirError() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.grisClaro, fontSize: 13),
+            ),
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: _cargarMembresias,
+              child: const Text(
+                'REINTENTAR',
+                style: TextStyle(color: AppColors.verdePrimario, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
         ),
       ),
-      body: FondoApp(
-        child: SafeArea(
-          child: Stack(
-            children: [
-              ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                children: [
-                  // 🌟 SECCIÓN 1: TARJETA DE MEMBRESÍA ACTUAL
-                  const Text(
-                    'ESTADO ACTUAL',
-                    style: TextStyle(
-                      color: AppColors.grisMedio,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.1,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
+    );
+  }
+
+  // Se muestra solo si el cliente nunca ha tenido una membresía registrada
+  Widget _construirSinMembresia() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.grisOscuro,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.grisMedio.withOpacity(0.3)),
+      ),
+      child: const Center(
+        child: Text(
+          'Aún no tienes una membresía registrada.',
+          style: TextStyle(color: AppColors.grisClaro, fontSize: 13),
+        ),
+      ),
+    );
+  }
+
+  // Tarjeta de membresía actual (el diseño original, sin cambios)
+  Widget _construirTarjetaActual(Map<String, dynamic> membresiaActual) {
+    return Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: AppColors.grisOscuro,
@@ -158,7 +187,57 @@ class MisMembresiasScreen extends StatelessWidget {
                         ),
                       ],
                     ),
+                  );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.fondoNegro,
+      appBar: AppBar(
+        backgroundColor: AppColors.fondoNegro,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.verdePrimario, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'MI MEMBRESÍA',
+          style: TextStyle(
+            fontFamily: 'Oswald',
+            fontSize: 16,
+            color: AppColors.verdePrimario,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ),
+      body: FondoApp(
+        child: SafeArea(
+          child: Stack(
+            children: [
+              if (_isLoading)
+                const Center(child: CircularProgressIndicator(color: AppColors.verdePrimario))
+              else if (_error != null)
+                _construirError()
+              else
+              ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                children: [
+                  // 🌟 SECCIÓN 1: TARJETA DE MEMBRESÍA ACTUAL
+                  const Text(
+                    'ESTADO ACTUAL',
+                    style: TextStyle(
+                      color: AppColors.grisMedio,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.1,
+                    ),
                   ),
+                  const SizedBox(height: 8),
+                  _membresiaActual == null
+                      ? _construirSinMembresia()
+                      : _construirTarjetaActual(_membresiaActual!),
 
                   const SizedBox(height: 28),
 
@@ -174,7 +253,13 @@ class MisMembresiasScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
 
-                  ...historialMembresias.map((item) {
+                  if (_historial.isEmpty)
+                    const Text(
+                      'Aún no hay registros en tu historial.',
+                      style: TextStyle(color: AppColors.grisClaro, fontSize: 12),
+                    ),
+
+                  ..._historial.map((item) {
                     bool esActiva = item['estado'] == 'activa';
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
@@ -207,7 +292,7 @@ class MisMembresiasScreen extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  item['plan'],
+                                  item['plan'] ?? 'Membresía Active Sport',
                                   style: const TextStyle(
                                     color: AppColors.blancoPuro,
                                     fontSize: 13,

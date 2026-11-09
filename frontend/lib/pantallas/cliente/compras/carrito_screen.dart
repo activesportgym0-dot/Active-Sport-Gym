@@ -4,7 +4,7 @@ import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
 import 'package:frontend/pantallas/cliente/compras/mis_pedidos_cliente_screen.dart';
 import 'package:frontend/pantallas/cliente/compras/resumen_compra_screen.dart';
-import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
+import 'package:frontend/componentes/cliente/burbuja_mini_chat_modal.dart';
 import 'package:frontend/services/carrito_service.dart';
 class CarritoScreen extends StatefulWidget {
   const CarritoScreen({super.key});

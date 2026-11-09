@@ -3,12 +3,14 @@
 /// (Para CREAR una rutina se usa RutinaNuevaModel, en rutina_model.dart.)
 
 class SerieGuardadaModel {
+  final int idRutinaSerie;
   final int numeroSerie;
   final int repeticiones;
   final num peso;
   final int descansoEntreSeries;
 
   const SerieGuardadaModel({
+    this.idRutinaSerie = 0,
     required this.numeroSerie,
     required this.repeticiones,
     required this.peso,
@@ -17,6 +19,7 @@ class SerieGuardadaModel {
 
   factory SerieGuardadaModel.fromJson(Map<String, dynamic> json) {
     return SerieGuardadaModel(
+      idRutinaSerie: int.tryParse(json['id_rutina_serie'].toString()) ?? 0,
       numeroSerie: int.tryParse(json['numero_serie'].toString()) ?? 0,
       repeticiones: int.tryParse(json['repeticiones'].toString()) ?? 0,
       peso: num.tryParse(json['peso'].toString()) ?? 0,
@@ -32,18 +35,22 @@ class SerieGuardadaModel {
 }
 
 class EjercicioGuardadoModel {
+  final int idRutinaEjercicio;
   final int idEjercicio;
   final String nombre;
   final String maquina;
+  final String imagen; // foto del ejercicio (la misma que se ve al crear la rutina)
   final String gifUrl;
   final int orden;
   final int descansoFinal;
   final List<SerieGuardadaModel> series;
 
   const EjercicioGuardadoModel({
+    this.idRutinaEjercicio = 0,
     required this.idEjercicio,
     required this.nombre,
     this.maquina = '',
+    this.imagen = '',
     this.gifUrl = '',
     this.orden = 0,
     this.descansoFinal = 60,
@@ -64,9 +71,11 @@ class EjercicioGuardadoModel {
       ..sort((a, b) => a.numeroSerie.compareTo(b.numeroSerie));
 
     return EjercicioGuardadoModel(
+      idRutinaEjercicio: int.tryParse(json['id_rutina_ejercicio'].toString()) ?? 0,
       idEjercicio: int.tryParse(json['id_ejercicio'].toString()) ?? 0,
       nombre: (ejercicio['nombre'] ?? 'Ejercicio').toString(),
       maquina: (ejercicio['maquina'] ?? '').toString(),
+      imagen: (ejercicio['imagen'] ?? '').toString(),
       gifUrl: (ejercicio['gif_url'] ?? '').toString(),
       orden: int.tryParse(json['orden'].toString()) ?? 0,
       descansoFinal: int.tryParse(json['descanso_final'].toString()) ?? 60,
@@ -82,6 +91,7 @@ class EjercicioGuardadoModel {
         'id_ejercicio': idEjercicio,
         'title': nombre,
         'category': maquina,
+        'imagePath': imagen, // la tarjeta de crear/editar rutina lee la foto de aquí
         'gif_url': gifUrl,
         'descanso_final': descansoFinal,
         'series': series.map((s) => s.toMapaPantalla()).toList(),

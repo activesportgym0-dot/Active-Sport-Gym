@@ -3,6 +3,7 @@ import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
 import 'package:frontend/componentes/cliente/entrenar/detalle_seccion_card.dart';
+import 'package:frontend/componentes/cliente/rutina/media_ejercicio.dart';
 import 'package:frontend/services/ejercicio_service.dart';
 
 class DetalleEjercicioAdminScreen extends StatefulWidget {
@@ -33,33 +34,47 @@ class _DetalleEjercicioAdminScreenState
     super.dispose();
   }
 
-  Widget _construirMidia(String ruta) {
-    if (ruta.isEmpty) {
-      return const Center(
-        child: Icon(Icons.fitness_center, color: Colors.white54, size: 60),
+  Widget _iconoVacio() {
+    return const Center(
+      child: Icon(Icons.fitness_center, color: Colors.black38, size: 60),
+    );
+  }
+
+  // Cada página del visor: el video primero y la foto de segunda.
+  // Se muestran completos (sin recortar) sobre fondo blanco, igual que en el detalle del cliente.
+  Widget _construirMidia(Map<String, String> midia) {
+    final String url = midia['url'] ?? '';
+    final bool esVideo = midia['tipo'] == 'video';
+
+    if (url.isEmpty) return _iconoVacio();
+
+    // El video (o GIF) se entrega con MediaEjercicio, que convierte el video de Cloudinary
+    // en una animación liviana para poder mostrarla.
+    if (esVideo) {
+      return Container(
+        color: Colors.white,
+        child: MediaEjercicio(url: url, fit: BoxFit.contain),
       );
     }
-    if (ruta.startsWith('assets/')) {
-      return Image.asset(
-        ruta,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (c, e, s) => const Center(
-          child: Icon(Icons.fitness_center, color: Colors.white54, size: 60),
-        ),
-      );
-    } else {
-      return Image.network(
-        ruta,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-        errorBuilder: (c, e, s) => const Center(
-          child: Icon(Icons.fitness_center, color: Colors.white54, size: 60),
-        ),
-      );
-    }
+
+    return Container(
+      color: Colors.white,
+      child: url.startsWith('assets/')
+          ? Image.asset(
+              url,
+              fit: BoxFit.contain,
+              width: double.infinity,
+              height: double.infinity,
+              errorBuilder: (c, e, s) => _iconoVacio(),
+            )
+          : Image.network(
+              url,
+              fit: BoxFit.contain,
+              width: double.infinity,
+              height: double.infinity,
+              errorBuilder: (c, e, s) => _iconoVacio(),
+            ),
+    );
   }
 
   @override
@@ -89,9 +104,12 @@ class _DetalleEjercicioAdminScreenState
     final String respiracion = widget.ejercicio['respiracion'] ?? '';
     final String ritmo = widget.ejercicio['ritmo_movimiento'] ?? '';
 
+    // Primero el video (gif_url) y de segunda la foto
     final List<Map<String, String>> listaMidia = [
-      if (imagen.isNotEmpty) {'tipo': 'Imagen Principal', 'url': imagen},
-      if (gifUrl.isNotEmpty) {'tipo': 'Demostración (Video/GIF)', 'url': gifUrl},
+      if (gifUrl.isNotEmpty)
+        {'tipo': 'video', 'etiqueta': 'Demostración (Video/GIF)', 'url': gifUrl},
+      if (imagen.isNotEmpty)
+        {'tipo': 'foto', 'etiqueta': 'Foto del ejercicio', 'url': imagen},
     ];
 
     return Scaffold(
@@ -119,7 +137,7 @@ class _DetalleEjercicioAdminScreenState
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    // 1. Visor de Multimedia (Solo si hay elementos)
+                    // 1. Visor de Multimedia (Solo si hay elementos): video primero, foto de segunda
                     if (listaMidia.isNotEmpty) ...[
                       Stack(
                         alignment: Alignment.center,
@@ -144,8 +162,7 @@ class _DetalleEjercicioAdminScreenState
                                   });
                                 },
                                 itemBuilder: (context, index) {
-                                  return _construirMidia(
-                                      listaMidia[index]['url']!);
+                                  return _construirMidia(listaMidia[index]);
                                 },
                               ),
                             ),
@@ -203,7 +220,7 @@ class _DetalleEjercicioAdminScreenState
                                     color: AppColors.verdePrimario.withOpacity(0.5)),
                               ),
                               child: Text(
-                                listaMidia[_paginaActual]['tipo']!,
+                                listaMidia[_paginaActual]['etiqueta']!,
                                 style: const TextStyle(
                                   fontFamily: 'Roboto',
                                   color: Colors.white,
@@ -378,11 +395,11 @@ class _DetalleEjercicioAdminScreenState
                             if (confirmar == true) {
                               int id = widget.ejercicio['id_ejercicio'] ?? 0;
                               bool eliminado = await EjercicioService.eliminarEjercicio(id);
-                              
+
                               if (eliminado && context.mounted) {
                                 // 1. Primero cerramos la pantalla de detalles de forma segura
-                                Navigator.pop(context); 
-                                
+                                Navigator.pop(context);
+
                                 // 2. Luego ejecutamos el callback para refrescar la lista en la pantalla anterior
                                 if (widget.onEliminar != null) {
                                   widget.onEliminar!();

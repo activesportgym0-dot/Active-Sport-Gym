@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
-import 'package:frontend/componentes/fondo.dart';
 import 'package:frontend/pantallas/cliente/menuLateral/progreso/detalle_medida_screen.dart';
-import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
+import 'package:frontend/models/progreso_model.dart';
+import 'package:frontend/services/progreso_service.dart';
+import 'package:frontend/componentes/cliente/burbuja_mini_chat_modal.dart';
 
 class ProgresoScreen extends StatefulWidget {
   const ProgresoScreen({super.key});
@@ -13,75 +14,50 @@ class ProgresoScreen extends StatefulWidget {
 
 class _ProgresoScreenState extends State<ProgresoScreen> {
   bool _isLoading = false;
-  Map<String, dynamic>? _progresoActual;
-  List<dynamic> _historialMedidas = [];
+  ProgresoModel? _progresoActual;
+  List<ProgresoModel> _historialMedidas = [];
 
   @override
   void initState() {
     super.initState();
-    _cargarDatosLocales();
+    _cargarDatos();
   }
 
-  Future<void> _cargarDatosLocales() async {
+  void _mostrarMensaje(String mensaje, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: error ? Colors.redAccent : AppColors.verdePrimario,
+      ),
+    );
+  }
+
+  // Carga la medida actual y el historial desde el backend
+  Future<void> _cargarDatos() async {
     setState(() => _isLoading = true);
 
-    await Future.delayed(const Duration(milliseconds: 300));
+    try {
+      final resultados = await Future.wait([
+        ProgresoService.obtenerProgresoActual(),
+        ProgresoService.obtenerHistorial(),
+      ]);
 
-    if (mounted) {
+      if (!mounted) return;
       setState(() {
-        _progresoActual = {
-          "peso_actual": 75.5,
-          "altura": 1.78,
-          "brazo_izquierdo": 35.0,
-          "brazo_derecho": 35.5,
-          "pecho": 102.0,
-          "cintura": 80.0,
-          "cadera": 95.0,
-          "muslo_izquierdo": 58.0,
-          "muslo_derecho": 58.5,
-          "pantorrilla_izquierda": 38.0,
-          "pantorrilla_derecha": 38.2,
-          "created_at": "2026-10-20"
-        };
-        _historialMedidas = [
-          {
-            "id": 2,
-            "peso_actual": 75.5,
-            "altura": 1.78,
-            "brazo_izquierdo": 35.0,
-            "brazo_derecho": 35.5,
-            "pecho": 102.0,
-            "cintura": 80.0,
-            "cadera": 95.0,
-            "muslo_izquierdo": 58.0,
-            "muslo_derecho": 58.5,
-            "pantorrilla_izquierda": 38.0,
-            "pantorrilla_derecha": 38.2,
-            "created_at": "2026-10-20"
-          },
-          {
-            "id": 1,
-            "peso_actual": 77.0,
-            "altura": 1.78,
-            "brazo_izquierdo": 34.0,
-            "brazo_derecho": 34.5,
-            "pecho": 100.0,
-            "cintura": 82.0,
-            "cadera": 96.0,
-            "muslo_izquierdo": 59.0,
-            "muslo_derecho": 59.5,
-            "pantorrilla_izquierda": 38.0,
-            "pantorrilla_derecha": 38.0,
-            "created_at": "2026-09-15"
-          },
-        ];
+        _progresoActual = resultados[0] as ProgresoModel?;
+        _historialMedidas = resultados[1] as List<ProgresoModel>;
         _isLoading = false;
       });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _mostrarMensaje(e.toString().replaceFirst('Exception: ', ''), error: true);
     }
   }
 
   // 🗑️ Función para eliminar una medida individual del historial
-  void _confirmarBorradoIndividual(int index, Map<String, dynamic> item) {
+  void _confirmarBorradoIndividual(ProgresoModel item) {
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
@@ -91,7 +67,7 @@ class _ProgresoScreenState extends State<ProgresoScreen> {
           style: TextStyle(color: Colors.white, fontFamily: 'Oswald'),
         ),
         content: Text(
-          '¿Deseas eliminar el registro del ${item['created_at']} (${item['peso_actual']} Kg)?',
+          '¿Deseas eliminar el registro del ${item.fechaRegistro} (${item.pesoActual} Kg)?',
           style: const TextStyle(color: Colors.grey, fontSize: 13),
         ),
         actions: [
@@ -101,19 +77,55 @@ class _ProgresoScreenState extends State<ProgresoScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(c);
-              setState(() {
-                _historialMedidas.removeAt(index);
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Medida eliminada del historial'),
-                  backgroundColor: AppColors.verdePrimario,
-                ),
-              );
+              final r = await ProgresoService.eliminarMedida(item.idProgreso);
+              if (r['success'] == true) {
+                await _cargarDatos();
+                _mostrarMensaje('Medida eliminada del historial');
+              } else {
+                _mostrarMensaje(r['message'], error: true);
+              }
             },
             child: const Text('ELIMINAR', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🗑️ Vaciar todo el historial (se borra en el servidor, por eso pide confirmación)
+  void _confirmarVaciarHistorial() {
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: AppColors.grisOscuro,
+        title: const Text(
+          'Vaciar historial',
+          style: TextStyle(color: Colors.white, fontFamily: 'Oswald'),
+        ),
+        content: const Text(
+          '¿Deseas eliminar todos tus registros de medidas? Esta acción no se puede deshacer.',
+          style: TextStyle(color: Colors.grey, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: const Text('CANCELAR', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () async {
+              Navigator.pop(c);
+              final r = await ProgresoService.vaciarHistorial();
+              if (r['success'] == true) {
+                await _cargarDatos();
+                _mostrarMensaje('Historial vaciado');
+              } else {
+                _mostrarMensaje(r['message'], error: true);
+              }
+            },
+            child: const Text('VACIAR', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -133,6 +145,13 @@ class _ProgresoScreenState extends State<ProgresoScreen> {
     final pantIzqController = TextEditingController();
     final pantDerController = TextEditingController();
 
+    bool guardando = false;
+    String? errorModal; // el SnackBar queda tapado por el modal, por eso el error se muestra dentro
+
+    // Acepta coma o punto como separador decimal
+    double? aNumero(TextEditingController c) =>
+        double.tryParse(c.text.trim().replaceAll(',', '.'));
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -140,7 +159,8 @@ class _ProgresoScreenState extends State<ProgresoScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Padding(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModal) => Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom,
           left: 20,
@@ -181,6 +201,14 @@ class _ProgresoScreenState extends State<ProgresoScreen> {
               _buildTextField('Pantorrilla Izquierda (cm)', pantIzqController),
               _buildTextField('Pantorrilla Derecha (cm)', pantDerController),
 
+              if (errorModal != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    errorModal!,
+                    style: const TextStyle(color: Colors.redAccent, fontSize: 12, decoration: TextDecoration.none),
+                  ),
+                ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -192,11 +220,59 @@ class _ProgresoScreenState extends State<ProgresoScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  onPressed: () {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Medidas guardadas localmente')),
+                  onPressed: () async {
+                    if (guardando) return;
+
+                    final valores = [
+                      aNumero(pesoController),
+                      aNumero(alturaController),
+                      aNumero(brazoIzqController),
+                      aNumero(brazoDerController),
+                      aNumero(pechoController),
+                      aNumero(cinturaController),
+                      aNumero(caderaController),
+                      aNumero(musloIzqController),
+                      aNumero(musloDerController),
+                      aNumero(pantIzqController),
+                      aNumero(pantDerController),
+                    ];
+
+                    // El backend exige los 11 campos y que sean mayores a cero
+                    if (valores.any((v) => v == null || v <= 0)) {
+                      setModal(() => errorModal = 'Completa todos los campos con números mayores a cero.');
+                      return;
+                    }
+
+                    // La altura va en metros (el IMC se calcula con ese valor)
+                    if (valores[1]! > 3) {
+                      setModal(() => errorModal = 'La altura debe estar en metros (ejemplo: 1.78).');
+                      return;
+                    }
+
+                    guardando = true;
+                    setModal(() => errorModal = null);
+                    final r = await ProgresoService.registrarMedida(
+                      pesoActual: valores[0]!,
+                      altura: valores[1]!,
+                      brazoIzquierdo: valores[2]!,
+                      brazoDerecho: valores[3]!,
+                      pecho: valores[4]!,
+                      cintura: valores[5]!,
+                      cadera: valores[6]!,
+                      musloIzquierdo: valores[7]!,
+                      musloDerecho: valores[8]!,
+                      pantorrillaIzquierda: valores[9]!,
+                      pantorrillaDerecha: valores[10]!,
                     );
+                    guardando = false;
+
+                    if (r['success'] == true) {
+                      if (context.mounted) Navigator.pop(context);
+                      await _cargarDatos();
+                      _mostrarMensaje(r['message']);
+                    } else {
+                      setModal(() => errorModal = r['message'].toString());
+                    }
                   },
                   child: const Text(
                     'GUARDAR MEDIDAS',
@@ -214,6 +290,7 @@ class _ProgresoScreenState extends State<ProgresoScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -295,7 +372,7 @@ class _ProgresoScreenState extends State<ProgresoScreen> {
                         : RefreshIndicator(
                             color: AppColors.verdePrimario,
                             backgroundColor: AppColors.grisOscuro,
-                            onRefresh: _cargarDatosLocales,
+                            onRefresh: _cargarDatos,
                             child: SingleChildScrollView(
                               physics: const AlwaysScrollableScrollPhysics(),
                               padding: const EdgeInsets.all(16),
@@ -340,18 +417,18 @@ class _ProgresoScreenState extends State<ProgresoScreen> {
                                               Row(
                                                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                                                 children: [
-                                                  _buildStatItem('Peso', '${_progresoActual!['peso_actual']} Kg', Icons.fitness_center),
-                                                  _buildStatItem('Altura', '${_progresoActual!['altura']} m', Icons.height),
-                                                  _buildStatItem('Cintura', '${_progresoActual!['cintura']} cm', Icons.straighten),
+                                                  _buildStatItem('Peso', '${_progresoActual!.pesoActual} Kg', Icons.fitness_center),
+                                                  _buildStatItem('Altura', '${_progresoActual!.altura} m', Icons.height),
+                                                  _buildStatItem('Cintura', '${_progresoActual!.cintura} cm', Icons.straighten),
                                                 ],
                                               ),
                                               const Divider(color: Colors.white12, height: 24),
                                               Row(
                                                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                                                 children: [
-                                                  _buildStatItem('Pecho', '${_progresoActual!['pecho']} cm', Icons.accessibility),
-                                                  _buildStatItem('B. Izq', '${_progresoActual!['brazo_izquierdo']} cm', Icons.line_weight),
-                                                  _buildStatItem('B. Der', '${_progresoActual!['brazo_derecho']} cm', Icons.line_weight),
+                                                  _buildStatItem('Pecho', '${_progresoActual!.pecho} cm', Icons.accessibility),
+                                                  _buildStatItem('B. Izq', '${_progresoActual!.brazoIzquierdo} cm', Icons.line_weight),
+                                                  _buildStatItem('B. Der', '${_progresoActual!.brazoDerecho} cm', Icons.line_weight),
                                                 ],
                                               ),
                                             ],
@@ -375,9 +452,7 @@ class _ProgresoScreenState extends State<ProgresoScreen> {
                                       ),
                                       if (_historialMedidas.isNotEmpty)
                                         TextButton(
-                                          onPressed: () {
-                                            setState(() => _historialMedidas.clear());
-                                          },
+                                          onPressed: _confirmarVaciarHistorial,
                                           child: const Text(
                                             'Vaciar historial',
                                             style: TextStyle(color: Colors.redAccent, fontSize: 12, decoration: TextDecoration.none),
@@ -428,11 +503,11 @@ class _ProgresoScreenState extends State<ProgresoScreen> {
                                                               crossAxisAlignment: CrossAxisAlignment.start,
                                                               children: [
                                                                 Text(
-                                                                  'Peso: ${item['peso_actual']} Kg',
+                                                                  'Peso: ${item.pesoActual} Kg',
                                                                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, decoration: TextDecoration.none),
                                                                 ),
                                                                 Text(
-                                                                  'Fecha: ${item['created_at']}',
+                                                                  'Fecha: ${item.fechaRegistro}',
                                                                   style: const TextStyle(color: Colors.grey, fontSize: 11, decoration: TextDecoration.none),
                                                                 ),
                                                               ],
@@ -445,7 +520,7 @@ class _ProgresoScreenState extends State<ProgresoScreen> {
                                                   
                                                   IconButton(
                                                     icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 20),
-                                                    onPressed: () => _confirmarBorradoIndividual(index, item),
+                                                    onPressed: () => _confirmarBorradoIndividual(item),
                                                     tooltip: 'Eliminar esta medida',
                                                   ),
                                                   const SizedBox(width: 4),

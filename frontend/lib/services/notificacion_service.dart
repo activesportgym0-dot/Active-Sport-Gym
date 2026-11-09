@@ -6,6 +6,10 @@ import '../models/notificacion_model.dart';
 import 'api_config.dart';
 import 'auth_service.dart';
 
+/// SERVICIO ÚNICO DE NOTIFICACIONES. Lo usan las dos partes de la app, para no crear
+/// servicios separados por rol:
+///  - ADMINISTRADOR: crear, listar y eliminar las notificaciones que se envían.
+///  - CLIENTE: ver sus notificaciones (personales y generales) y marcarlas como leídas.
 class NotificacionService {
   static const String _rutaNotificaciones = '/notificaciones';
 
@@ -129,6 +133,91 @@ class NotificacionService {
       return {
         'success': false,
         'message': _mensaje(data, 'No se pudo eliminar la notificación'),
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  // CLIENTE
+
+  /// GET /notificaciones/mis-notificaciones -> las notificaciones personales del cliente y las
+  /// generales (enviadas a todos), la más reciente primero.
+  /// Si no tiene ninguna, el backend responde {mensaje, notificaciones: []} en vez de una lista.
+  /// Lanza una excepción con el motivo real si el servidor responde con error.
+  static Future<List<NotificacionModel>> obtenerMisNotificaciones() async {
+    if (!_haySesion) throw Exception(_sinSesion);
+
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}$_rutaNotificaciones/mis-notificaciones'),
+      headers: _headersJson,
+    );
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      final List<dynamic> lista = decoded is List
+          ? decoded
+          : (decoded is Map && decoded['notificaciones'] is List ? decoded['notificaciones'] as List : const []);
+      return lista
+          .whereType<Map>()
+          .map((n) => NotificacionModel.fromJson(Map<String, dynamic>.from(n)))
+          .toList();
+    }
+
+    throw Exception(
+      _mensaje(
+        _decodificarRespuesta(response.body),
+        'No se pudieron cargar tus notificaciones (${response.statusCode})',
+      ),
+    );
+  }
+
+  /// PUT /notificaciones/marcar-leida/:id -> marca una notificación como leída.
+  static Future<Map<String, dynamic>> marcarComoLeida(int idNotificacion) async {
+    if (!_haySesion) return {'success': false, 'message': _sinSesion};
+
+    try {
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}$_rutaNotificaciones/marcar-leida/$idNotificacion'),
+        headers: _headersJson,
+      );
+      final data = _decodificarRespuesta(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': data['mensaje'] ?? 'Notificación marcada como leída',
+        };
+      }
+      return {
+        'success': false,
+        'message': _mensaje(data, 'No se pudo marcar la notificación como leída'),
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  /// PUT /notificaciones/marcar-todas-leidas -> marca todas las notificaciones del cliente como leídas.
+  static Future<Map<String, dynamic>> marcarTodasComoLeidas() async {
+    if (!_haySesion) return {'success': false, 'message': _sinSesion};
+
+    try {
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}$_rutaNotificaciones/marcar-todas-leidas'),
+        headers: _headersJson,
+      );
+      final data = _decodificarRespuesta(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': data['mensaje'] ?? 'Todas tus notificaciones fueron marcadas como leídas',
+        };
+      }
+      return {
+        'success': false,
+        'message': _mensaje(data, 'No se pudieron marcar las notificaciones como leídas'),
       };
     } catch (e) {
       return {'success': false, 'message': 'Error de conexión: $e'};

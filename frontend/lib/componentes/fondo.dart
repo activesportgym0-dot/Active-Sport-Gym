@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
-import 'dart:math' as math;
+
 
 class FondoApp extends StatelessWidget {
   final Widget child;

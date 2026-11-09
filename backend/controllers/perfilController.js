@@ -63,7 +63,9 @@ export const editarPerfil = async (req, res) => {
             "cedula",
             "edad",
             "peso",
-            "altura"
+            "altura",
+            "municipio",
+            "direccion"
         ];
         const camposUsuario = {};
         // TOMAR SOLAMENTE LOS CAMPOS PERMITIDOS
@@ -102,6 +104,14 @@ export const editarPerfil = async (req, res) => {
         if (camposUsuario.telefono !== undefined) {
             camposUsuario.telefono =
                 String(camposUsuario.telefono).trim();
+        }
+        if (camposUsuario.municipio !== undefined) {
+            camposUsuario.municipio =
+                String(camposUsuario.municipio).trim();
+        }
+        if (camposUsuario.direccion !== undefined) {
+            camposUsuario.direccion =
+                String(camposUsuario.direccion).trim();
         }
         // VALIDAR CORREO
         if (camposUsuario.correo !== undefined) {
@@ -179,6 +189,29 @@ export const editarPerfil = async (req, res) => {
             ) {
                 return res.status(400).json({
                     mensaje: "La altura no es válida"
+                });
+            }
+        }
+        // VALIDAR MUNICIPIO Y DIRECCIÓN (no pueden quedar vacíos ni pasar del largo de la columna)
+        if (camposUsuario.municipio !== undefined) {
+            if (
+                camposUsuario.municipio.length === 0 ||
+                camposUsuario.municipio.length > 100
+            ) {
+                return res.status(400).json({
+                    mensaje:
+                        "El municipio es obligatorio y debe tener máximo 100 caracteres"
+                });
+            }
+        }
+        if (camposUsuario.direccion !== undefined) {
+            if (
+                camposUsuario.direccion.length === 0 ||
+                camposUsuario.direccion.length > 150
+            ) {
+                return res.status(400).json({
+                    mensaje:
+                        "La dirección es obligatoria y debe tener máximo 150 caracteres"
                 });
             }
         }

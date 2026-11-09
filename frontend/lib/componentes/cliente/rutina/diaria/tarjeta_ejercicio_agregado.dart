@@ -237,46 +237,23 @@ class TarjetaEjercicioAgregado extends StatelessWidget {
         ),
         const SizedBox(height: 10),
 
-        // Tiempos de descanso
-        Row(
-          children: [
-            Expanded(
-              child: Row(
-                children: [
-                  const Text('DESCANSO ENTRE SERIES:', style: TextStyle(color: Colors.grey, fontSize: 8)),
-                  const SizedBox(width: 2),
-                  _campoNumero(
-                    inicial: series.isNotEmpty ? _texto((series.first as Map)['descanso_entre_series']) : '',
-                    alto: 22,
-                    fontSize: 10,
-                    // El mismo descanso se aplica a todas las series del ejercicio
-                    onChanged: (v) {
-                      final segundos = int.tryParse(v);
-                      for (final s in series) {
-                        (s as Map)['descanso_entre_series'] = segundos;
-                      }
-                    },
-                  ),
-                  const Text(' Seg', style: TextStyle(color: Colors.grey, fontSize: 8)),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Row(
-                children: [
-                  const Text('DESCANSO FINAL:', style: TextStyle(color: Colors.grey, fontSize: 8)),
-                  const SizedBox(width: 2),
-                  _campoNumero(
-                    inicial: _texto(ejercicioData['descanso_final']),
-                    alto: 22,
-                    fontSize: 10,
-                    onChanged: (v) => ejercicioData['descanso_final'] = int.tryParse(v),
-                  ),
-                  const Text(' Seg', style: TextStyle(color: Colors.grey, fontSize: 8)),
-                ],
-              ),
-            ),
-          ],
+        // Tiempos de descanso (uno debajo del otro para que se lean completos en pantallas angostas)
+        _filaDescanso(
+          'DESCANSO ENTRE SERIES',
+          series.isNotEmpty ? _texto((series.first as Map)['descanso_entre_series']) : '',
+          // El mismo descanso se aplica a todas las series del ejercicio
+          (v) {
+            final segundos = int.tryParse(v);
+            for (final s in series) {
+              (s as Map)['descanso_entre_series'] = segundos;
+            }
+          },
+        ),
+        const SizedBox(height: 6),
+        _filaDescanso(
+          'DESCANSO FINAL',
+          _texto(ejercicioData['descanso_final']),
+          (v) => ejercicioData['descanso_final'] = int.tryParse(v),
         ),
         const SizedBox(height: 12),
 
@@ -291,6 +268,29 @@ class TarjetaEjercicioAgregado extends StatelessWidget {
             Expanded(child: _botonAccion('ELIMINAR', onEliminarEjercicio)),
           ],
         ),
+      ],
+    );
+  }
+
+  // Fila de descanso: etiqueta a la izquierda, y a la derecha el campo con "Seg"
+  Widget _filaDescanso(String etiqueta, String inicial, ValueChanged<String> onChanged) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            etiqueta,
+            style: const TextStyle(color: Colors.grey, fontSize: 11),
+          ),
+        ),
+        _campoNumero(
+          inicial: inicial,
+          ancho: 44,
+          alto: 26,
+          fontSize: 12,
+          onChanged: onChanged,
+        ),
+        const SizedBox(width: 6),
+        const Text('Seg', style: TextStyle(color: Colors.grey, fontSize: 11)),
       ],
     );
   }

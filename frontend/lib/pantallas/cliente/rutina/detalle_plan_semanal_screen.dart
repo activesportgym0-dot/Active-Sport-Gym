@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
+import 'package:frontend/pantallas/cliente/rutina/acciones_rutina.dart';
 
 class DetallePlanSemanalScreen extends StatelessWidget {
   final Map<String, dynamic> planData;
@@ -12,6 +13,8 @@ class DetallePlanSemanalScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final String nombrePlan = planData['nombre_plan'] ?? 'Sin nombre';
     final String fechaInicio = planData['fecha'] ?? 'No especificada';
+    // Solo las rutinas ya guardadas traen id_rutina: con él se muestran Editar y Eliminar
+    final int? idRutina = int.tryParse(planData['id_rutina'].toString());
     final Map<String, dynamic> estructura = planData['estructura_semanal'] ?? {};
 
     final diasActivos = estructura.entries.where((entry) {
@@ -31,6 +34,31 @@ class DetallePlanSemanalScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('RESUMEN DEL PLAN', style: EstiloTexto.tekoTituloSeccion),
+        actions: [
+          if (idRutina != null) ...[
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, color: AppColors.verdePrimario, size: 22),
+              tooltip: 'Editar rutina',
+              onPressed: () async {
+                final guardado = await AccionesRutina.editar(context, idRutina: idRutina);
+                // Vuelve a la lista avisando que hubo cambios para que se recargue
+                if (guardado && context.mounted) Navigator.pop(context, true);
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 22),
+              tooltip: 'Eliminar rutina',
+              onPressed: () async {
+                final eliminada = await AccionesRutina.eliminar(
+                  context,
+                  idRutina: idRutina,
+                  nombre: nombrePlan,
+                );
+                if (eliminada && context.mounted) Navigator.pop(context, true);
+              },
+            ),
+          ],
+        ],
       ),
       body: FondoApp(
         child: SafeArea(

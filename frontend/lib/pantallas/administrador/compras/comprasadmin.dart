@@ -10,7 +10,7 @@ import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/core/formato.dart';
 import 'package:frontend/componentes/fondo.dart';
 import 'package:frontend/pantallas/administrador/compras/detalle_producto_admin_screen.dart';
-import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart'; // 👈 Importación de la burbuja de la IA
+import 'package:frontend/componentes/cliente/burbuja_mini_chat_modal.dart'; // 👈 Importación de la burbuja de la IA
 import 'package:frontend/services/producto_service.dart';
 
 class ComprasAdminScreen extends StatefulWidget {

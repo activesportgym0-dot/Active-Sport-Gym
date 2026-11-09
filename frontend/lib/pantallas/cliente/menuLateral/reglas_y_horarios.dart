@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
+import 'package:frontend/models/regla_horario_model.dart';
+import 'package:frontend/services/regla_horario_service.dart';
 
 class HorariosYReglasClienteScreen extends StatefulWidget {
   const HorariosYReglasClienteScreen({super.key});
@@ -11,38 +13,57 @@ class HorariosYReglasClienteScreen extends StatefulWidget {
 }
 
 class _HorariosYReglasClienteScreenState extends State<HorariosYReglasClienteScreen> {
-  // Lista simulada de consulta (Visual)
-  final List<Map<String, dynamic>> _registros = [
-    {
-      'id': 1,
-      'tipo': 'Horario',
-      'titulo': 'Lunes a Viernes',
-      'contenido': '5:00 a.m. - 10:00 p.m.',
-    },
-    {
-      'id': 2,
-      'tipo': 'Horario',
-      'titulo': 'Sábados',
-      'contenido': '6:00 a.m. - 6:00 p.m.',
-    },
-    {
-      'id': 3,
-      'tipo': 'Regla',
-      'titulo': 'Uso de Toalla',
-      'contenido': 'Es obligatorio el uso de toalla personal en todas las zonas de entrenamiento.',
-    },
-    {
-      'id': 4,
-      'tipo': 'Regla',
-      'titulo': 'Orden de Equipamiento',
-      'contenido': 'Retornar mancuernas, discos y barras a sus respectivos soportes al terminar.',
-    },
-  ];
+  List<ReglaHorarioModel> _horarios = [];
+  List<ReglaHorarioModel> _reglas = [];
+  bool _cargando = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarRegistros();
+  }
+
+  // Usa las funciones del cliente de ReglaHorarioService (GET /reglas-horarios, solo requiere token)
+  Future<void> _cargarRegistros() async {
+    setState(() {
+      _cargando = true;
+      _error = null;
+    });
+
+    final r = await ReglaHorarioService.obtenerReglasHorariosCliente();
+    if (!mounted) return;
+
+    if (r['success'] == true) {
+      setState(() {
+        _horarios = List<ReglaHorarioModel>.from(r['horarios']);
+        _reglas = List<ReglaHorarioModel>.from(r['reglas']);
+        _cargando = false;
+      });
+    } else {
+      setState(() {
+        _error = r['message']?.toString() ?? 'No se pudieron cargar los horarios y reglas';
+        _cargando = false;
+      });
+    }
+  }
+
+  Widget _mensajeCentrado(Widget hijo) {
+    // ListView para que el pull-to-refresh también funcione con la lista vacía o en error
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16),
+      children: [
+        SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+        Center(child: hijo),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final horarios = _registros.where((r) => r['tipo'] == 'Horario').toList();
-    final reglas = _registros.where((r) => r['tipo'] == 'Regla').toList();
+    final horarios = _horarios;
+    final reglas = _reglas;
 
     return Scaffold(
       backgroundColor: AppColors.fondoNegro,
@@ -66,7 +87,38 @@ class _HorariosYReglasClienteScreenState extends State<HorariosYReglasClienteScr
       ),
       body: FondoApp(
         child: SafeArea(
-          child: ListView(
+          child: _cargando
+              ? const Center(child: CircularProgressIndicator(color: AppColors.verdePrimario))
+              : RefreshIndicator(
+            color: AppColors.verdePrimario,
+            onRefresh: _cargarRegistros,
+            child: _error != null
+                ? _mensajeCentrado(Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _error!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: AppColors.grisClaro, fontSize: 13),
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton.icon(
+                        onPressed: _cargarRegistros,
+                        icon: const Icon(Icons.refresh, color: AppColors.verdePrimario, size: 18),
+                        label: const Text(
+                          'REINTENTAR',
+                          style: TextStyle(color: AppColors.verdePrimario, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ))
+                : (horarios.isEmpty && reglas.isEmpty)
+                    ? _mensajeCentrado(const Text(
+                        'Aún no hay horarios ni reglas publicados.',
+                        style: TextStyle(color: AppColors.grisClaro, fontSize: 13),
+                      ))
+                    : ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(16),
             children: [
               // SECCIÓN DE HORARIOS
@@ -108,6 +160,7 @@ class _HorariosYReglasClienteScreenState extends State<HorariosYReglasClienteScr
               ...reglas.map((item) => ReglaHorarioClienteCard(item: item)),
             ],
           ),
+          ),
         ),
       ),
     );
@@ -116,7 +169,7 @@ class _HorariosYReglasClienteScreenState extends State<HorariosYReglasClienteScr
 
 // Tarjeta exclusiva para el cliente (Solo lectura, sin botones de editar/eliminar)
 class ReglaHorarioClienteCard extends StatelessWidget {
-  final Map<String, dynamic> item;
+  final ReglaHorarioModel item;
 
   const ReglaHorarioClienteCard({
     super.key,
@@ -125,7 +178,7 @@ class ReglaHorarioClienteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool esHorario = item['tipo'] == 'Horario';
+    final bool esHorario = item.esHorario;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -150,7 +203,7 @@ class ReglaHorarioClienteCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    item['titulo'],
+                    item.titulo,
                     style: EstiloTexto.textoNormalRoboto.copyWith(
                       color: AppColors.blancoPuro,
                       fontWeight: FontWeight.bold,
@@ -159,7 +212,7 @@ class ReglaHorarioClienteCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    item['contenido'],
+                    item.contenido,
                     style: EstiloTexto.textoNormalRoboto.copyWith(
                       color: AppColors.grisClaro,
                       fontSize: 12,

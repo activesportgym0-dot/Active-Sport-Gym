@@ -48,7 +48,22 @@ class MembresiaModel {
     String dos(int n) => n.toString().padLeft(2, '0');
     return '${fecha.year}-${dos(fecha.month)}-${dos(fecha.day)}';
   }
+
+  // CLIENTE
+
+  /// Mapa con las claves que usa MisMembresiasScreen (id_membresia, estado,
+  /// fecha_inicio, fecha_fin). Las fechas ya van como dd/MM/yyyy.
+  Map<String, dynamic> toMapaTarjetaCliente() {
+    return {
+      'id_membresia': idMembresia,
+      'estado': estado,
+      'fecha_inicio': fechaInicioFormateada,
+      'fecha_fin': fechaFinFormateada,
+    };
+  }
 }
+
+// ADMINISTRADOR
 
 /// Un cliente con su membresía más reciente (GET /membresias/admin).
 /// Si nunca ha tenido plan, [membresia] es null.

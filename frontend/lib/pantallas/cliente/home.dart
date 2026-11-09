@@ -15,10 +15,6 @@ import 'package:frontend/services/ejercicio_service.dart';
 import 'package:frontend/pantallas/cliente/asistente_ia_screen.dart';
 import 'package:frontend/pantallas/cliente/compras/compras_screen.dart';
 import 'package:frontend/pantallas/cliente/entrenar.dart';
-import 'package:frontend/pantallas/cliente/menuLateral/entrenamiento_screen.dart';
-import 'package:frontend/pantallas/cliente/menuLateral/historial_screen.dart';
-import 'package:frontend/pantallas/cliente/menuLateral/reglas_y_horarios.dart';
-import 'package:frontend/pantallas/cliente/mis_membresias.dart';
 import 'package:frontend/pantallas/cliente/notificaciones_Cliente.dart';
 import 'package:frontend/pantallas/cliente/rutina/diaria/crear_rutina_diaria_screen.dart';
 import 'package:frontend/pantallas/perfil.dart';
@@ -96,6 +92,7 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
   @override
   void initState() {
     super.initState();
+    MenuLateral.precargar();
     _cargarDatos();
   }
 
@@ -160,10 +157,6 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
     );
   }
 
-  void _irA(Widget pantalla) {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => pantalla));
-  }
-
   @override
   Widget build(BuildContext context) {
     final ejerciciosMostrados = _ejerciciosFiltrados;
@@ -172,6 +165,7 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
       key: _scaffoldKey,
       backgroundColor: AppColors.fondoNegro,
       drawer: const MenuLateral(),
+      drawerScrimColor: Colors.black26,
       appBar: AppBar(
         backgroundColor: AppColors.fondoNegro,
         elevation: 0,
@@ -234,7 +228,7 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
                 const SizedBox(height: 16),
 
                 // Carrusel con fotos del gimnasio (avanza solo). Se edita en slides_gimnasio.dart
-                const CarruselHome(slides: slidesGimnasio, altura: 190),
+                const CarruselHome(slides: slidesGimnasio, altura: 240),
                 const SizedBox(height: 16),
 
                 // Frase motivadora (cambia cada día)

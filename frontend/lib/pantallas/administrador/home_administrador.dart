@@ -3,16 +3,20 @@ import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
 import 'package:frontend/componentes/administrador/Home/menu_lateral_administrador.dart';
-import 'package:frontend/componentes/administrador/Home/admin_card.dart';
 import 'package:frontend/componentes/administrador/Home/activity_card.dart';
+import 'package:frontend/componentes/administrador/Home/admin_stat_card.dart';
+import 'package:frontend/componentes/administrador/Home/admin_consejos_home.dart';
+import 'package:frontend/componentes/cliente/home/carrusel_home.dart';
+import 'package:frontend/componentes/cliente/home/slides_gimnasio.dart';
 import 'package:frontend/pantallas/administrador/Gestionusuariosadmin.dart';
+import 'package:frontend/pantallas/administrador/asistente_ia_admin_screen.dart';
 import 'package:frontend/pantallas/administrador/compras/comprasadmin.dart';
 import 'package:frontend/pantallas/administrador/compras/pedidos_admin_screen.dart';
 import 'package:frontend/pantallas/administrador/entrenaradmin.dart';
 import 'package:frontend/pantallas/administrador/notificacionesadmin.dart';
 import 'package:frontend/pantallas/perfil.dart';
-import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
 import 'package:frontend/models/resumen_admin_model.dart';
+import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/services/dashboard_service.dart';
 
 class HomeAdministradorScreen extends StatefulWidget {
@@ -28,6 +32,21 @@ class _HomeAdministradorScreenState extends State<HomeAdministradorScreen> {
   // Datos reales que vienen del backend (GET /dashboard/resumen)
   ResumenAdminModel _resumen = const ResumenAdminModel();
   bool _isLoading = true;
+
+  // Primer nombre de quien inició sesión: "luisa maría" -> "Luisa"
+  String get _nombreSaludo {
+    final primero = SessionService.nombreUsuario.trim().split(RegExp(r'\s+')).first;
+    if (primero.isEmpty) return '';
+    return primero[0].toUpperCase() + primero.substring(1).toLowerCase();
+  }
+
+  // "Buenos días", "Buenas tardes" o "Buenas noches" según la hora del teléfono
+  String get _saludoHora {
+    final hora = DateTime.now().hour;
+    if (hora < 12) return 'Buenos días';
+    if (hora < 19) return 'Buenas tardes';
+    return 'Buenas noches';
+  }
 
   @override
   void initState() {
@@ -69,6 +88,22 @@ class _HomeAdministradorScreenState extends State<HomeAdministradorScreen> {
       MaterialPageRoute(builder: (context) => pantalla),
     );
     if (mounted) _cargarResumen();
+  }
+
+  Widget _tituloSeccion(String emoji, String texto) {
+    return Row(
+      children: [
+        Text('$emoji ', style: const TextStyle(fontSize: 16)),
+        Text(
+          texto,
+          style: const TextStyle(
+            color: AppColors.blancoPuro,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -131,50 +166,72 @@ class _HomeAdministradorScreenState extends State<HomeAdministradorScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Saludo (igual que en el home del cliente)
                   Row(
                     children: [
-                      const Text('⚡ ', style: TextStyle(fontSize: 22)),
+                      const Text('🔥 ', style: TextStyle(fontSize: 22)),
                       Text(
-                        'Panel de Control,\nAdministrador',
+                        'Hola,\n$_nombreSaludo',
                         style: EstiloTexto.tituloPrincipalPrimerPantalla.copyWith(fontSize: 24),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 6),
+                  Text(
+                    '$_saludoHora • ¿Listo para entrenar?',
+                    style: const TextStyle(color: AppColors.grisClaro, fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Carrusel con fotos del gimnasio (el mismo del cliente: se edita en slides_gimnasio.dart)
+                  const CarruselHome(slides: slidesGimnasio, altura: 190),
+                  const SizedBox(height: 22),
+
+                  const AdminConsejosHome(cada: Duration(seconds: 15)),
+                  const SizedBox(height: 25),
 
                   // Tarjeta principal de control de usuarios
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.grisOscuro,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.verdePrimario.withOpacity(0.3)),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [AppColors.verdePrimario.withOpacity(0.2), AppColors.grisOscuro],
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.verdePrimario.withOpacity(0.4)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Row(
-                              children: [
-                                Text('👥 ', style: TextStyle(fontSize: 16)),
-                                Text(
-                                  'GESTIÓN DE USUARIOS',
-                                  style: TextStyle(
-                                    color: AppColors.blancoPuro,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
+                            Container(
+                              padding: const EdgeInsets.all(9),
+                              decoration: BoxDecoration(
+                                color: AppColors.verdePrimario.withOpacity(0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.people_alt_rounded, color: AppColors.verdePrimario, size: 20),
+                            ),
+                            const SizedBox(width: 10),
+                            const Expanded(
+                              child: Text(
+                                'GESTIÓN DE USUARIOS',
+                                style: TextStyle(
+                                  color: AppColors.blancoPuro,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
                                 ),
-                              ],
+                              ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                               decoration: BoxDecoration(
-                                color: AppColors.verdePrimario.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(6),
+                                color: AppColors.verdePrimario.withOpacity(0.18),
+                                borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
                                 '${_n(_resumen.usuarios)} Totales',
@@ -187,25 +244,26 @@ class _HomeAdministradorScreenState extends State<HomeAdministradorScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 12),
                         const Text(
                           'Acepta nuevos registros, revisa los perfiles activos y administra la eliminación de usuarios de la aplicación.',
-                          style: TextStyle(color: AppColors.grisClaro, fontSize: 13),
+                          style: TextStyle(color: AppColors.grisClaro, fontSize: 13, height: 1.3),
                         ),
                         const SizedBox(height: 15),
                         SizedBox(
                           width: double.infinity,
-                          height: 40,
-                          child: ElevatedButton(
+                          height: 42,
+                          child: ElevatedButton.icon(
                             onPressed: () => _irA(const GestionUsuariosAdminScreen()),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.verdePrimario,
                               foregroundColor: AppColors.fondoNegro,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(10),
                               ),
                             ),
-                            child: const Text(
+                            icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                            label: const Text(
                               'ADMINISTRAR USUARIOS',
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
@@ -216,56 +274,48 @@ class _HomeAdministradorScreenState extends State<HomeAdministradorScreen> {
                   ),
                   const SizedBox(height: 25),
 
-                  // Sección de Accesos Rápidos
-                  const Row(
-                    children: [
-                      Text('🛠️ ', style: TextStyle(fontSize: 16)),
-                      Text(
-                        'GESTIÓN RÁPIDA',
-                        style: TextStyle(
-                          color: AppColors.blancoPuro,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-
-                  // Grid de opciones con los resúmenes actualizados
+                  // Sección de Accesos Rápidos: las mismas 4 opciones de siempre, con el diseño de colores
+                  _tituloSeccion('🛠️', 'GESTIÓN RÁPIDA'),
+                  const SizedBox(height: 12),
                   GridView.count(
                     crossAxisCount: 2,
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
-                    childAspectRatio: 1.4,
+                    childAspectRatio: 1.85,
                     children: [
-                      AdminCard(
-                        title: 'Ejercicios\n(${_n(_resumen.ejercicios)} registrados)',
-                        icon: Icons.fitness_center,
+                      AdminStatCard(
+                        icono: Icons.fitness_center,
+                        valor: _n(_resumen.ejercicios),
+                        titulo: 'Ejercicios',
+                        detalle: 'registrados',
+                        color: const Color(0xFF4FC3F7),
                         onTap: () => _irA(const EntrenarAdminScreen()),
                       ),
-                      AdminCard(
-                        title: 'Productos / Tienda\n(${_n(_resumen.productosConStock)} en stock)',
-                        icon: Icons.shopping_bag_outlined,
+                      AdminStatCard(
+                        icono: Icons.shopping_bag_rounded,
+                        valor: _n(_resumen.productosConStock),
+                        titulo: 'Productos / Tienda',
+                        detalle: _isLoading ? '' : 'en stock (de ${_resumen.productos})',
+                        color: const Color(0xFFFFB74D),
                         onTap: () => _irA(const ComprasAdminScreen()),
                       ),
-                      AdminCard(
-                        title: 'Membresías\n(${_n(_resumen.membresiasActivas)} activas)',
-                        icon: Icons.card_membership,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const GestionUsuariosAdminScreen(),
-                            ),
-                          );
-                        },
+                      AdminStatCard(
+                        icono: Icons.card_membership,
+                        valor: _n(_resumen.membresiasActivas),
+                        titulo: 'Membresías',
+                        detalle: _isLoading ? '' : 'activas (de ${_resumen.membresias})',
+                        color: const Color(0xFFBA68C8),
+                        onTap: () => _irA(const GestionUsuariosAdminScreen()),
                       ),
-                      AdminCard(
-                        title: 'Control de pedidos \n(Cambia el estado del pedido)',
-                        icon: Icons.receipt_long_outlined,
+                      // Este es solo un botón: no tiene número
+                      AdminStatCard(
+                        icono: Icons.receipt_long_rounded,
+                        valor: '',
+                        titulo: 'Control de pedidos',
+                        detalle: 'Cambia el estado',
+                        color: AppColors.verdePrimario,
                         onTap: () => _irA(const PedidosAdminScreen()),
                       ),
                     ],
@@ -350,7 +400,6 @@ class _HomeAdministradorScreenState extends State<HomeAdministradorScreen> {
           ),
         ),
       ),
-      floatingActionButton: const BurbujaMiniChatModal(),
       bottomNavigationBar: Container(
         color: AppColors.fondoNegro,
         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -367,7 +416,7 @@ class _HomeAdministradorScreenState extends State<HomeAdministradorScreen> {
             ),
             IconButton(
               icon: const Icon(Icons.chat_bubble_outline, color: AppColors.grisMedio, size: 28),
-              onPressed: () => _irA(const ComprasAdminScreen()),
+              onPressed: () => _irA(const AsistenteIAAdminScreen()),
             ),
             IconButton(
               icon: const Icon(Icons.shopping_cart_outlined, color: AppColors.grisMedio, size: 28),

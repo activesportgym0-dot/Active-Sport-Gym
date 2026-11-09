@@ -1,3 +1,4 @@
+import { supabase } from "../config/supabase.js";
 import {
     obtenerTodos,
     obtenerUsuarioPorId,
@@ -69,6 +70,7 @@ export const editarUsuario = async (req, res) => {
             });
         }
         // CAMPOS PERMITIDOS PARA ACTUALIZAR (Incluyendo is_active)
+        // El rol NO está aquí a propósito: se cambia solo con cambiarRolUsuario (PATCH /:id/rol)
         const camposPermitidos = [
             "nombre",
             "apellido",
@@ -78,11 +80,16 @@ export const editarUsuario = async (req, res) => {
             "edad",
             "peso",
             "altura",
+            "municipio",
+            "direccion",
             "is_active"
         ];
         const campos = {};
+        const esAdmin = req.usuario?.rol === "admin";
         // TOMAR SOLAMENTE LOS CAMPOS ENVIADOS
         for (const campo of camposPermitidos) {
+            // Activar o desactivar cuentas es solo del administrador
+            if (campo === "is_active" && !esAdmin) continue;
             if (req.body[campo] !== undefined) {
                 campos[campo] = req.body[campo];
             }
@@ -105,6 +112,12 @@ export const editarUsuario = async (req, res) => {
         }
         if (campos.telefono !== undefined) {
             campos.telefono = campos.telefono.trim();
+        }
+        if (campos.municipio !== undefined) {
+            campos.municipio = String(campos.municipio).trim();
+        }
+        if (campos.direccion !== undefined) {
+            campos.direccion = String(campos.direccion).trim();
         }
         // VALIDAR CORREO
         if (campos.correo !== undefined) {
@@ -247,6 +260,99 @@ export const cambiarEstadoUsuario = async (req, res) => {
         });
     } catch (error) {
         console.error("Error inesperado al cambiar estado:", error);
+        return res.status(500).json({
+            mensaje: "Error interno del servidor"
+        });
+    }
+};
+
+// CAMBIAR ROL DE USUARIO - ESPECÍFICO PARA ADMIN (PATCH /usuarios/:id/rol)
+// Body: { "rol": "admin" }  o  { "rol": "cliente" }
+const ROLES_VALIDOS = ["admin", "cliente"];
+
+export const cambiarRolUsuario = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!id || isNaN(id)) {
+            return res.status(400).json({
+                mensaje: "El ID del usuario debe ser un número válido"
+            });
+        }
+
+        const rolNuevo = typeof req.body.rol === "string"
+            ? req.body.rol.trim().toLowerCase()
+            : "";
+        if (!ROLES_VALIDOS.includes(rolNuevo)) {
+            return res.status(400).json({
+                mensaje: `El rol debe ser uno de estos: ${ROLES_VALIDOS.join(", ")}`
+            });
+        }
+
+        const idObjetivo = Number(id);
+
+        // Un administrador no puede cambiarse el rol a sí mismo
+        if (idObjetivo === Number(req.usuario?.id_usuario)) {
+            return res.status(400).json({
+                mensaje: "No puedes cambiar tu propio rol"
+            });
+        }
+
+        const { data: usuario, error: errorBusqueda } = await obtenerUsuarioPorId(idObjetivo);
+        if (errorBusqueda || !usuario) {
+            return res.status(404).json({
+                mensaje: "Usuario no encontrado"
+            });
+        }
+
+        if (usuario.rol === rolNuevo) {
+            return res.status(200).json({
+                mensaje: `El usuario ya tiene el rol ${rolNuevo}`,
+                usuario: { id_usuario: idObjetivo, rol: rolNuevo }
+            });
+        }
+
+        // Nunca puede quedar el sistema sin administradores
+        if (usuario.rol === "admin" && rolNuevo !== "admin") {
+            const { count, error: errorConteo } = await supabase
+                .from("usuarios")
+                .select("id_usuario", { count: "exact", head: true })
+                .eq("rol", "admin");
+
+            if (errorConteo) {
+                console.error("Error al contar administradores:", errorConteo);
+                return res.status(500).json({
+                    mensaje: "No fue posible validar los administradores"
+                });
+            }
+            if ((count ?? 0) <= 1) {
+                return res.status(400).json({
+                    mensaje: "No se puede quitar el rol al único administrador"
+                });
+            }
+        }
+
+        const { data, error } = await actualizarUsuario(idObjetivo, { rol: rolNuevo });
+
+        if (error) {
+            console.error("Error al cambiar rol de usuario:", error);
+            return res.status(500).json({
+                mensaje: "No fue posible actualizar el rol del usuario",
+                error: error.message
+            });
+        }
+
+        if (!data) {
+            return res.status(404).json({
+                mensaje: "Usuario no encontrado"
+            });
+        }
+
+        return res.status(200).json({
+            mensaje: `El rol del usuario ahora es ${rolNuevo}`,
+            usuario: data
+        });
+    } catch (error) {
+        console.error("Error inesperado al cambiar rol:", error);
         return res.status(500).json({
             mensaje: "Error interno del servidor"
         });

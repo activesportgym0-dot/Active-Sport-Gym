@@ -4,7 +4,7 @@ import 'package:frontend/componentes/administrador/reglasyhorarios/regla_horario
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/componentes/fondo.dart';
-import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart'; // 👈 Importación de la burbuja de la IA
+import 'package:frontend/componentes/cliente/burbuja_mini_chat_modal.dart'; // 👈 Importación de la burbuja de la IA
 import 'package:frontend/models/regla_horario_model.dart'; 
 import 'package:frontend/services/regla_horario_service.dart'; 
 

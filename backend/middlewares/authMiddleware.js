@@ -35,3 +35,15 @@ export const verificarCliente = (req, res, next) => {
     }
     next();
 };
+
+// 4. DEJA PASAR SOLO AL DUEÑO DEL PERFIL (según :id_usuario o :id) O A UN ADMINISTRADOR
+export const verificarPropioOAdmin = (req, res, next) => {
+    const idSolicitado = Number(req.params.id_usuario ?? req.params.id);
+    const esPropio = Number(req.usuario?.id_usuario) === idSolicitado;
+    const esAdmin = req.usuario?.rol === 'admin';
+
+    if (!esPropio && !esAdmin) {
+        return res.status(403).json({ error: 'Acceso denegado: solo puedes consultar o modificar tu propio perfil' });
+    }
+    next();
+};

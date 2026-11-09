@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
-import 'package:frontend/componentes/cliente/asistente/burbuja_mini_chat_modal.dart';
+import 'package:frontend/models/progreso_model.dart';
+import 'package:frontend/componentes/cliente/burbuja_mini_chat_modal.dart';
 
 class DetalleMedidaScreen extends StatelessWidget {
-  final Map<String, dynamic> medida;
+  final ProgresoModel medida;
 
   const DetalleMedidaScreen({
     super.key,
@@ -85,7 +86,7 @@ class DetalleMedidaScreen extends StatelessWidget {
                                   style: TextStyle(color: Colors.grey, fontSize: 13),
                                 ),
                                 Text(
-                                  medida['created_at'] ?? 'N/A',
+                                  medida.fechaRegistro.isNotEmpty ? medida.fechaRegistro : 'N/A',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -120,17 +121,19 @@ class DetalleMedidaScreen extends StatelessWidget {
                                   ),
                                 ),
                                 const Divider(color: Colors.white12, height: 20),
-                                _buildFichaDetalle('Peso Actual', '${medida['peso_actual'] ?? 'N/A'} Kg'),
-                                _buildFichaDetalle('Altura', '${medida['altura'] ?? 'N/A'} m'),
-                                _buildFichaDetalle('Brazo Izquierdo', '${medida['brazo_izquierdo'] ?? 'N/A'} cm'),
-                                _buildFichaDetalle('Brazo Derecho', '${medida['brazo_derecho'] ?? 'N/A'} cm'),
-                                _buildFichaDetalle('Pecho', '${medida['pecho'] ?? 'N/A'} cm'),
-                                _buildFichaDetalle('Cintura', '${medida['cintura'] ?? 'N/A'} cm'),
-                                _buildFichaDetalle('Cadera', '${medida['cadera'] ?? 'N/A'} cm'),
-                                _buildFichaDetalle('Muslo Izquierdo', '${medida['muslo_izquierdo'] ?? 'N/A'} cm'),
-                                _buildFichaDetalle('Muslo Derecho', '${medida['muslo_derecho'] ?? 'N/A'} cm'),
-                                _buildFichaDetalle('Pantorrilla Izquierda', '${medida['pantorrilla_izquierda'] ?? 'N/A'} cm'),
-                                _buildFichaDetalle('Pantorrilla Derecha', '${medida['pantorrilla_derecha'] ?? 'N/A'} cm'),
+                                _buildFichaDetalle('Peso Actual', '${medida.pesoActual} Kg'),
+                                _buildFichaDetalle('Altura', '${medida.altura} m'),
+                                if (medida.imc != null)
+                                  _buildFichaDetalle('IMC', '${medida.imc}'),
+                                _buildFichaDetalle('Brazo Izquierdo', '${medida.brazoIzquierdo} cm'),
+                                _buildFichaDetalle('Brazo Derecho', '${medida.brazoDerecho} cm'),
+                                _buildFichaDetalle('Pecho', '${medida.pecho} cm'),
+                                _buildFichaDetalle('Cintura', '${medida.cintura} cm'),
+                                _buildFichaDetalle('Cadera', '${medida.cadera} cm'),
+                                _buildFichaDetalle('Muslo Izquierdo', '${medida.musloIzquierdo} cm'),
+                                _buildFichaDetalle('Muslo Derecho', '${medida.musloDerecho} cm'),
+                                _buildFichaDetalle('Pantorrilla Izquierda', '${medida.pantorrillaIzquierda} cm'),
+                                _buildFichaDetalle('Pantorrilla Derecha', '${medida.pantorrillaDerecha} cm'),
                               ],
                             ),
                           ),

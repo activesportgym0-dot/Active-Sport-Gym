@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
+import 'package:frontend/componentes/fondo.dart';
+import 'package:frontend/models/notificacion_model.dart';
+import 'package:frontend/services/notificacion_service.dart';
 
 class NotificacionesClienteScreen extends StatefulWidget {
   const NotificacionesClienteScreen({super.key});
@@ -10,50 +13,80 @@ class NotificacionesClienteScreen extends StatefulWidget {
 }
 
 class _NotificacionesClienteScreenState extends State<NotificacionesClienteScreen> {
-  bool _isLoading = false;
+  // Notificaciones reales del cliente (GET /notificaciones/mis-notificaciones)
+  List<NotificacionModel> _notificaciones = [];
+  bool _isLoading = true;
 
-  // Lista local simulada de notificaciones
-  final List<Map<String, dynamic>> _notificaciones = [
-    {
-      'id': 1,
-      'titulo': '¡Nuevo Stock de Proteínas!',
-      'mensaje': 'Ya llegó la nueva mercancía de Whey Gold Standard y Smart Gainer.',
-      'tipo': 'stock',
-      'fecha': '06 Oct 2026',
-      'leido': false,
-    },
-    {
-      'id': 2,
-      'titulo': 'Mantenimiento de Maquinaria',
-      'mensaje': 'El área de peso libre estará cerrada mañana en la mañana por mantenimiento.',
-      'tipo': 'evento',
-      'fecha': '05 Oct 2026',
-      'leido': true,
-    },
-  ];
-
-  // Marcar una notificación individual como leída localmente
-  void _marcarComoLeida(int id) {
-    setState(() {
-      final index = _notificaciones.indexWhere((n) => n['id'] == id);
-      if (index != -1) {
-        _notificaciones[index]['leido'] = true;
-      }
-    });
+  @override
+  void initState() {
+    super.initState();
+    _cargarNotificaciones();
   }
 
-  // Marcar todas como leídas localmente
-  void _marcarTodasLeidas() {
-    setState(() {
-      for (var n in _notificaciones) {
-        n['leido'] = true;
-      }
-    });
+  void _mostrarMensaje(String mensaje, {required bool exito}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: exito ? Colors.green : Colors.redAccent,
+      ),
+    );
+  }
+
+  Future<void> _cargarNotificaciones() async {
+    if (mounted) setState(() => _isLoading = true);
+    try {
+      final notificaciones = await NotificacionService.obtenerMisNotificaciones();
+      if (!mounted) return;
+      setState(() {
+        _notificaciones = notificaciones;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _mostrarMensaje(
+        'Error al cargar tus notificaciones: ${e.toString().replaceFirst('Exception: ', '')}',
+        exito: false,
+      );
+    }
+  }
+
+  // Marca una notificación como leída (PUT /marcar-leida/:id). El cambio se ve al instante
+  // y se deshace si el servidor no lo acepta.
+  Future<void> _marcarComoLeida(NotificacionModel noti) async {
+    if (noti.leida) return;
+
+    final indice = _notificaciones.indexWhere((n) => n.idNotificacion == noti.idNotificacion);
+    if (indice == -1) return;
+    setState(() => _notificaciones[indice] = noti.copyWith(leida: true));
+
+    final resultado = await NotificacionService.marcarComoLeida(noti.idNotificacion);
+    if (!mounted) return;
+
+    if (resultado['success'] != true) {
+      final actual = _notificaciones.indexWhere((n) => n.idNotificacion == noti.idNotificacion);
+      if (actual != -1) setState(() => _notificaciones[actual] = noti);
+      _mostrarMensaje(resultado['message'].toString(), exito: false);
+    }
+  }
+
+  // Marca todas como leídas (PUT /marcar-todas-leidas)
+  Future<void> _marcarTodasLeidas() async {
+    final resultado = await NotificacionService.marcarTodasComoLeidas();
+    if (!mounted) return;
+
+    if (resultado['success'] == true) {
+      setState(() {
+        _notificaciones = _notificaciones.map((n) => n.copyWith(leida: true)).toList();
+      });
+    } else {
+      _mostrarMensaje(resultado['message'].toString(), exito: false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    bool hayPendientes = _notificaciones.any((n) => !(n['leido'] ?? false));
+    bool hayPendientes = _notificaciones.any((n) => !n.leida);
 
     return DefaultTextStyle(
       style: const TextStyle(decoration: TextDecoration.none),
@@ -62,6 +95,7 @@ class _NotificacionesClienteScreenState extends State<NotificacionesClienteScree
         body: Stack(
           children: [
             // Componente de Fondo personalizado
+            FondoApp(child: SizedBox.expand()),
 
             SafeArea(
               child: Column(
@@ -136,26 +170,35 @@ class _NotificacionesClienteScreenState extends State<NotificacionesClienteScree
                               ),
                               const SizedBox(height: 5),
                               Expanded(
-                                child: _notificaciones.isEmpty
-                                    ? Center(
-                                        child: Text(
-                                          'No tienes notificaciones por el momento',
-                                          style: EstiloTexto.hintTexto.copyWith(decoration: TextDecoration.none),
+                                child: RefreshIndicator(
+                                  color: AppColors.verdePrimario,
+                                  onRefresh: _cargarNotificaciones,
+                                  child: _notificaciones.isEmpty
+                                      ? ListView(
+                                          physics: const AlwaysScrollableScrollPhysics(),
+                                          children: [
+                                            const SizedBox(height: 120),
+                                            Center(
+                                              child: Text(
+                                                'No tienes notificaciones por el momento',
+                                                style: EstiloTexto.hintTexto.copyWith(decoration: TextDecoration.none),
+                                              ),
+                                            ),
+                                          ],
+                                        )
+                                      : ListView.builder(
+                                          physics: const AlwaysScrollableScrollPhysics(),
+                                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                                          itemCount: _notificaciones.length,
+                                          itemBuilder: (context, index) {
+                                            final noti = _notificaciones[index];
+                                            return TarjetaNotificacionCliente(
+                                              noti: noti.toMapaTarjetaCliente(),
+                                              onTap: () => _marcarComoLeida(noti),
+                                            );
+                                          },
                                         ),
-                                      )
-                                    : ListView.builder(
-                                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                                        itemCount: _notificaciones.length,
-                                        itemBuilder: (context, index) {
-                                          final noti = _notificaciones[index];
-                                          return TarjetaNotificacionCliente(
-                                            noti: noti,
-                                            onTap: () {
-                                              _marcarComoLeida(noti['id']);
-                                            },
-                                          );
-                                        },
-                                      ),
+                                ),
                               ),
                             ],
                           ),
@@ -183,6 +226,7 @@ class TarjetaNotificacionCliente extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool esLeido = noti['leido'] ?? false;
+    final String imagenUrl = (noti['imagen_url'] ?? '').toString();
 
     return GestureDetector(
       onTap: onTap,
@@ -200,6 +244,25 @@ class TarjetaNotificacionCliente extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Imagen (solo si el administrador adjuntó una a la notificación)
+            if (imagenUrl.isNotEmpty) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  imagenUrl,
+                  height: 150,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    height: 150,
+                    width: double.infinity,
+                    color: Colors.black26,
+                    child: const Icon(Icons.broken_image_outlined, color: AppColors.grisMedio, size: 32),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
