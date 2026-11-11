@@ -1,7 +1,11 @@
 import jwt from 'jsonwebtoken';
+import { supabase } from '../config/supabase.js';
 
 // 1. VERIFICA QUE EXISTA UN TOKEN VÁLIDO (USUARIO AUTENTICADO)
-export const verificarToken = (req, res, next) => {
+// Además confirma en la base de datos que la cuenta siga existiendo y activa, y toma el rol de ahí:
+// así una cuenta desactivada pierde el acceso de inmediato (aunque tenga "Recuérdame" y un token vigente)
+// y un cambio de rol aplica sin que la persona tenga que volver a iniciar sesión.
+export const verificarToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'] || req.headers['Authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
@@ -9,12 +13,36 @@ export const verificarToken = (req, res, next) => {
         return res.status(401).json({ error: 'Token no proporcionado, por favor inicie sesión' });
     }
 
+    let decoded;
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.usuario = decoded; 
-        next();
+        decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (err) {
         return res.status(403).json({ error: 'Token inválido o expirado' });
+    }
+
+    try {
+        const { data: usuario, error } = await supabase
+            .from('usuarios')
+            .select('rol, is_active')
+            .eq('id_usuario', decoded.id_usuario)
+            .maybeSingle();
+
+        if (error) {
+            console.error('Error al validar la sesión:', error);
+            return res.status(500).json({ error: 'No fue posible validar la sesión' });
+        }
+        if (!usuario) {
+            return res.status(401).json({ error: 'La cuenta ya no existe. Inicia sesión de nuevo.' });
+        }
+        if (usuario.is_active === false) {
+            return res.status(403).json({ error: 'Tu cuenta está desactivada. Comunícate con el gimnasio.' });
+        }
+
+        req.usuario = { ...decoded, rol: usuario.rol };
+        next();
+    } catch (err) {
+        console.error('Error inesperado al validar la sesión:', err);
+        return res.status(500).json({ error: 'No fue posible validar la sesión' });
     }
 };
 

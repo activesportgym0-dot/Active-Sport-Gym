@@ -8,9 +8,21 @@ import {
   guardarMensajesChat,
   obtenerReglasHorariosChat,
 } from "../models/chatModel.js";
-import { construirPromptCliente, construirPromptAdmin } from "../config/chatPrompts.js";
+import {
+  construirPromptCliente,
+  construirPromptAdmin,
+  construirPromptFiltro,
+  MENSAJES_FUERA_DE_TEMA,
+  MENSAJES_MATEMATICA_SUELTA,
+  MARCADOR_FUERA_DE_ALCANCE,
+} from "../config/chatPrompts.js";
+import { esMatematicaSuelta } from "../config/filtroTemas.js";
+
+console.log("[chat] controlador con filtro de temas cargado");
 
 const MODELO_CHAT = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
+// Modelo pequeño y rápido que decide si el mensaje es del gimnasio (se puede cambiar en el .env)
+const MODELO_FILTRO = process.env.GROQ_MODEL_FILTRO || "llama-3.1-8b-instant";
 const MAX_CARACTERES_MENSAJE = 1000; // largo máximo de cada pregunta
 const MENSAJES_DE_MEMORIA = 10; // cuántos mensajes anteriores recuerda la IA
 
@@ -93,6 +105,63 @@ const pedirRespuestaIA = async (systemPrompt, historial, mensaje) => {
   return completion.choices?.[0]?.message?.content?.trim() || "";
 };
 
+// ───────────── Filtro de temas ─────────────
+
+const pedirVeredicto = async (modelo, rol, historial, mensaje) => {
+  const contexto = historial
+    .slice(-4)
+    .map((m) => `${m.emisor === "usuario" ? "Usuario" : "Asistente"}: ${m.mensaje}`)
+    .join("\n");
+
+  const params = {
+    model: modelo,
+    temperature: 0,
+    max_completion_tokens: modelo.includes("gpt-oss") ? 600 : 20,
+    messages: [
+      { role: "system", content: construirPromptFiltro(rol) },
+      {
+        role: "user",
+        content: `Conversación reciente:\n${contexto || "(ninguna)"}\n\nÚLTIMO mensaje del usuario:\n"""${mensaje}"""\n\nResponde solo DENTRO o FUERA.`,
+      },
+    ],
+  };
+  if (modelo.includes("gpt-oss")) params.reasoning_effort = "low";
+
+  const completion = await obtenerGroq().chat.completions.create(params);
+  const veredicto = (completion.choices?.[0]?.message?.content || "").trim().toUpperCase();
+  console.log(`[chat] filtro ${modelo} (${rol}): ${veredicto || "(vacío)"}`);
+  return veredicto;
+};
+
+// true = el mensaje es del gimnasio. Si el filtro falla se prueba con el modelo principal;
+// si también falla, se deja pasar (la IA principal tiene sus propias reglas de alcance).
+const estaDentroDelTema = async (rol, historial, mensaje) => {
+  for (const modelo of [MODELO_FILTRO, MODELO_CHAT]) {
+    try {
+      const veredicto = await pedirVeredicto(modelo, rol, historial, mensaje);
+      if (veredicto.startsWith("FUERA")) return false;
+      if (veredicto.startsWith("DENTRO")) return true;
+      // Respuesta rara: se intenta con el siguiente modelo
+    } catch (error) {
+      console.error(`Filtro de temas falló con ${modelo}:`, error?.message || error);
+    }
+  }
+  return true;
+};
+
+// Respuesta fija cuando el mensaje no es del gimnasio (la IA principal ni lo ve)
+const responderFueraDeTema = async (
+  res,
+  rol,
+  sesionId,
+  usuarioId,
+  mensaje,
+  respuestaFija = MENSAJES_FUERA_DE_TEMA[rol]
+) => {
+  await guardarMensajesChat(sesionId, usuarioId, mensaje, respuestaFija);
+  return res.status(200).json({ respuesta: respuestaFija, sesionId });
+};
+
 // Flujo común del chat de cliente y de administrador
 const responderChat = async (req, res, { rol, armarPrompt }) => {
   try {
@@ -114,12 +183,26 @@ const responderChat = async (req, res, { rol, armarPrompt }) => {
 
     const sesionId = resolverSesion(req.body?.sesionId, rol);
 
-    const [systemPrompt, historial] = await Promise.all([
-      armarPrompt(),
-      obtenerHistorialChat(sesionId, usuarioId, MENSAJES_DE_MEMORIA),
-    ]);
+    // BARRERA 1 (sin IA): matemáticas sueltas y similares se rechazan de inmediato
+    if (esMatematicaSuelta(mensaje)) {
+      return responderFueraDeTema(res, rol, sesionId, usuarioId, mensaje, MENSAJES_MATEMATICA_SUELTA[rol]);
+    }
 
+    const historial = await obtenerHistorialChat(sesionId, usuarioId, MENSAJES_DE_MEMORIA);
+
+    // Si el mensaje no es del gimnasio (por ejemplo una multiplicación), la IA principal ni lo ve
+    const dentroDelTema = await estaDentroDelTema(rol, historial, mensaje);
+    if (!dentroDelTema) {
+      return responderFueraDeTema(res, rol, sesionId, usuarioId, mensaje);
+    }
+
+    const systemPrompt = await armarPrompt();
     const respuesta = await pedirRespuestaIA(systemPrompt, historial, mensaje);
+
+    // BARRERA 3: la IA principal también puede marcar el mensaje como ajeno al gimnasio
+    if (respuesta.includes(MARCADOR_FUERA_DE_ALCANCE)) {
+      return responderFueraDeTema(res, rol, sesionId, usuarioId, mensaje);
+    }
     if (!respuesta) {
       return res.status(502).json({ error: "El asistente no pudo generar una respuesta. Intenta de nuevo." });
     }

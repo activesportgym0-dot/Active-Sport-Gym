@@ -20,14 +20,21 @@ export const registro = async (req, res) => {
       contraseña, 
       confirmarContrasena,
       municipio,
-      direccion
-
+      direccion,
+      aceptaTerminos
     } = req.body;
 
     // 1. Validar que ningún campo obligatorio esté vacío
     if (!nombre || !apellido || !correo || !telefono || !cedula || !edad || !peso || !altura || !contraseña || !confirmarContrasena || !municipio || !direccion) {
       return res.status(400).json({
         mensaje: "Todos los campos son requeridos"
+      });
+    }
+
+    // Debe haber aceptado los términos y condiciones y la política de datos
+    if (aceptaTerminos !== true) {
+      return res.status(400).json({
+        mensaje: "Debes aceptar los términos y condiciones y la política de tratamiento de datos para registrarte"
       });
     }
 
@@ -103,7 +110,8 @@ export const registro = async (req, res) => {
       codigoVerificacion,
       codigoVerificacionExpiracion,
       municipio,
-      direccion
+      direccion,
+      new Date().toISOString() // fecha y hora en que aceptó los términos y condiciones
     );
 
     if (error) {

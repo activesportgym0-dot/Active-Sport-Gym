@@ -58,7 +58,7 @@ export const editarPerfil = async (req, res) => {
         const camposPermitidos = [
             "nombre",
             "apellido",
-            "correo",
+            // "correo" no se puede cambiar: es el que se verificó con el código al registrarse
             "telefono",
             "cedula",
             "edad",

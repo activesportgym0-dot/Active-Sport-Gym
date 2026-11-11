@@ -44,7 +44,8 @@ export const crearUser = async (
   codigoVerificacion,
   codigoVerificacionExpiracion,
   municipio,
-  direccion
+  direccion,
+  terminosAceptadosEn
 ) => {
   const { data, error } = await supabase
     .from("usuarios")
@@ -65,7 +66,8 @@ export const crearUser = async (
         codigoVerificacion,
         codigoVerificacionExpiracion,
         municipio,
-        direccion
+        direccion,
+        terminos_aceptados_en: terminosAceptadosEn
       }
     ])
     .select("id_usuario, nombre, apellido, correo, rol, fecha_registro")
