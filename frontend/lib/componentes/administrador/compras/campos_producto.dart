@@ -116,7 +116,7 @@ class SelectorTipoProducto extends StatelessWidget {
   }
 }
 
-/// Selector de categoría única. Trabaja con los ids que usa el backend.
+/// Selector de categoría única.
 class DropdownCategoriaProducto extends StatelessWidget {
   final List<dynamic> categorias;
   final int? idSeleccionada;

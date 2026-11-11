@@ -384,10 +384,13 @@ class _MenuLateralState extends State<MenuLateral> {
             _buildMenuItem(Icons.logout, 'Cerrar sesión', () {
               // Se borra lo guardado para que el siguiente usuario no vea datos de este
               MenuLateral.limpiarCache();
-              Navigator.push(
+              // Borra la sesión (también la que guardó "Recuérdame") y vuelve al login sin dejar pantallas atrás
+              SessionService.limpiarSesion();
+              Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(
-                  builder: (context)=> const LoginScreen()));
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+                (route) => false,
+              );
             }, isRed: true),
             const SizedBox(height: 20),
            // 3. Tarjeta de Membresía (Interactiva, con datos reales del backend)

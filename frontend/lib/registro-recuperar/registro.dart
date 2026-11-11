@@ -3,6 +3,7 @@ import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/core/colores.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
+import 'terminos_condiciones_screen.dart';
 import 'verificar_cuenta_screen.dart';
 
 class RegistrarScreen extends StatefulWidget {
@@ -32,6 +33,7 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
+  bool _aceptaTerminos = false; // debe marcarse para poder registrarse
 
   // Estados para validar los requisitos en tiempo real
   bool _tieneMinimo8 = false;
@@ -79,6 +81,14 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
       return;
     }
 
+    // Sin aceptar los términos y la política de datos no se puede registrar
+    if (!_aceptaTerminos) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Debes aceptar los términos y condiciones para registrarte')),
+      );
+      return;
+    }
+
     final cedula = _cedulaController.text.trim();
     final nombre = _nombreController.text.trim();
     final apellido = _apellidoController.text.trim();
@@ -123,7 +133,7 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
     );
 
     // Llamamos al servicio de registro del backend
-    final exito = await AuthService.registrar(nuevoUsuario);
+    final exito = await AuthService.registrar(nuevoUsuario, aceptaTerminos: _aceptaTerminos);
 
     setState(() {
       _isLoading = false;
@@ -365,6 +375,64 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
                       ),
                     ),
                     const SizedBox(height: 25),
+
+                    // ACEPTACIÓN DE TÉRMINOS Y POLÍTICA DE DATOS
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: Checkbox(
+                            value: _aceptaTerminos,
+                            activeColor: AppColors.verdePrimario,
+                            checkColor: Colors.black,
+                            side: const BorderSide(color: Colors.white54, width: 1.5),
+                            onChanged: (valor) => setState(() => _aceptaTerminos = valor ?? false),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text('Acepto los ', style: EstiloTexto.politicasRoboto),
+                              GestureDetector(
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => const TerminosCondicionesScreen(tabInicial: 0)),
+                                ),
+                                child: Text(
+                                  'Términos y condiciones',
+                                  style: EstiloTexto.politicasRoboto.copyWith(
+                                    color: AppColors.verdePrimario,
+                                    fontWeight: FontWeight.bold,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
+                              Text(' y autorizo el tratamiento de mis datos personales según la ', style: EstiloTexto.politicasRoboto),
+                              GestureDetector(
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => const TerminosCondicionesScreen(tabInicial: 1)),
+                                ),
+                                child: Text(
+                                  'Política de datos',
+                                  style: EstiloTexto.politicasRoboto.copyWith(
+                                    color: AppColors.verdePrimario,
+                                    fontWeight: FontWeight.bold,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
+                              Text('.', style: EstiloTexto.politicasRoboto),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
 
                     // BOTÓN "REGISTRAR" ÚNICO Y LIMPIO
                     SizedBox(

@@ -25,7 +25,6 @@ class _DatosEditar {
 }
 
 /// Crear, editar y eliminar productos se hacen desde dos pantallas distintas
-/// (la lista y el detalle). Para no repetir la lógica, vive aquí una sola vez.
 class AccionesProducto {
   AccionesProducto._();
 

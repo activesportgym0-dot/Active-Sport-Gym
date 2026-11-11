@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
 import 'package:frontend/pantallas/administrador/home_administrador.dart';
 import 'package:frontend/pantallas/cliente/home.dart';
 import 'package:frontend/registro-recuperar/recuperar.dart';
 import 'package:frontend/registro-recuperar/registro.dart';
+import 'package:frontend/registro-recuperar/terminos_condiciones_screen.dart';
 import 'package:frontend/registro-recuperar/verificar_cuenta_screen.dart';
 import '../services/auth_service.dart';
+import '../services/sesion_guardada_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -22,6 +25,53 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _rememberMe = false;
   bool _isLoading = false;
+  bool _restaurandoSesion = true; // mientras se revisa si hay una sesión guardada
+
+  @override
+  void initState() {
+    super.initState();
+    _intentarRestaurarSesion();
+  }
+
+  @override
+  void dispose() {
+    _correoController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  // "Recordarme": si hay una sesión guardada y el servidor todavía la acepta, entra directo al home.
+  // Si no, rellena el correo recordado y muestra el login normal.
+  Future<void> _intentarRestaurarSesion() async {
+    final correoGuardado = await SesionGuardada.correoRecordado();
+    final rol = await SesionGuardada.restaurar();
+    if (!mounted) return;
+
+    if (rol != null) {
+      _irAlHome(rol);
+      return;
+    }
+
+    setState(() {
+      if (correoGuardado != null) {
+        _correoController.text = correoGuardado;
+        _rememberMe = true;
+      }
+      _restaurandoSesion = false;
+    });
+  }
+
+  // Redirección inteligente según el rol que devuelve tu backend
+  void _irAlHome(String rol) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => rol == 'admin'
+            ? const HomeAdministradorScreen()
+            : const HomeClienteScreen(),
+      ),
+    );
+  }
 
   // Método para iniciar sesión y validar roles
   void _hacerLogin() async {
@@ -50,26 +100,18 @@ class _LoginScreenState extends State<LoginScreen> {
       final usuarioData = resultado['usuario'];
       final String rol = usuarioData['rol'] ?? 'cliente';
 
+      // "Recordarme": guarda la sesión en el teléfono (o la borra si la casilla no está marcada)
+      if (_rememberMe) {
+        await SesionGuardada.guardar(correo);
+      } else {
+        await SesionGuardada.olvidar();
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('¡Bienvenido, ${usuarioData['nombre']}!')),
       );
 
-      // Redirección inteligente según el rol que devuelve tu backend
-      if (rol == 'admin') {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const HomeAdministradorScreen(), // ¡Ya no requiere parámetros!
-          ),
-        );
-      } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const HomeClienteScreen(),
-          ),
-        );
-      }
+      _irAlHome(rol);
     } else {
       final mensajeError = resultado['message'] ?? 'Error desconocido';
 
@@ -118,6 +160,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Mientras se revisa la sesión guardada no se muestra el login, para que no parpadee
+    if (_restaurandoSesion) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.verdePrimario),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -341,17 +393,20 @@ class _LoginScreenState extends State<LoginScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Text(
-                            '✓ ',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
+                          // Al tocarlo se abren los términos y condiciones y la política de datos
+                          GestureDetector(
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const TerminosCondicionesScreen(),
+                              ),
                             ),
-                          ),
-                          Text(
-                            'Políticas y condiciones',
-                            style: EstiloTexto.politicasRoboto,
+                            child: Text(
+                              'Políticas y condiciones',
+                              style: EstiloTexto.politicasRoboto.copyWith(
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
                           ),
                         ],
                       ),

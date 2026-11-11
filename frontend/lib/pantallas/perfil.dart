@@ -143,16 +143,15 @@ class _PerfilScreenState extends State<PerfilScreen> {
 
     final nombre = _nombreController.text.trim();
     final apellido = _apellidoController.text.trim();
-    final correo = _correoController.text.trim();
-    if (nombre.isEmpty || apellido.isEmpty || correo.isEmpty) {
-      _mostrarMensaje('Nombre, apellido y correo son obligatorios.', exito: false);
+    if (nombre.isEmpty || apellido.isEmpty) {
+      _mostrarMensaje('Nombre y apellido son obligatorios.', exito: false);
       return;
     }
 
     final campos = <String, dynamic>{
       'nombre': nombre,
       'apellido': apellido,
-      'correo': correo,
+      // El correo no se envía: es el que se verificó con el código y no se puede cambiar
     };
     if (_telefonoController.text.trim().isNotEmpty) {
       campos['telefono'] = _telefonoController.text.trim();
@@ -364,7 +363,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
               const SizedBox(height: 8),
               _buildCampoEditable(Icons.person_outline, 'Apellido', _apellidoController),
               const SizedBox(height: 8),
-              _buildCampoEditable(Icons.email_outlined, 'Correo electrónico', _correoController),
+              _buildCampoEditable(Icons.email_outlined, 'Correo electrónico', _correoController, editable: false),
               const SizedBox(height: 8),
               _buildCampoEditable(Icons.phone_outlined, 'Teléfono', _telefonoController, keyboardType: TextInputType.phone),
               const SizedBox(height: 8),
@@ -408,7 +407,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
       ),
     );
   }
-  Widget _buildCampoEditable(IconData icon, String label, TextEditingController controller, {TextInputType keyboardType = TextInputType.text}) {
+  // editable: false deja el campo solo de lectura aunque se esté editando el perfil (ej. el correo verificado)
+  Widget _buildCampoEditable(IconData icon, String label, TextEditingController controller, {TextInputType keyboardType = TextInputType.text, bool editable = true}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -426,7 +426,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
               children: [
                 Text(label, style: EstiloTexto.textoNormalRoboto.copyWith(fontSize: 10, color: AppColors.grisClaro)),
                 const SizedBox(height: 2),
-                _isEditing
+                _isEditing && editable
                     ? TextField(
                         controller: controller,
                         keyboardType: keyboardType,
@@ -441,6 +441,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
               ],
             ),
           ),
+          if (_isEditing && !editable)
+            const Icon(Icons.lock_outline, color: AppColors.grisMedio, size: 16),
         ],
       ),
     );

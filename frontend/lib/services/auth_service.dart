@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/user_model.dart';
 import 'api_config.dart';
+import 'sesion_guardada_service.dart';
 
 /// 🌟 Servicio global para mantener la sesión activa en la app de Flutter
 class SessionService {
@@ -10,12 +11,14 @@ class SessionService {
   static String nombreUsuario = '';
   static int? idUsuario;
 
-  // Método para limpiar los datos cuando el usuario cierre sesión
-  static void limpiarSesion() {
+  // Método para limpiar los datos cuando el usuario cierre sesión.
+  // Por defecto también borra lo que guardó "Recuérdame"; si no, la app volvería a entrar sola.
+  static void limpiarSesion({bool borrarGuardada = true}) {
     token = '';
     rol = '';
     nombreUsuario = '';
     idUsuario = null;
+    if (borrarGuardada) SesionGuardada.olvidar();
   }
 }
 
@@ -60,12 +63,13 @@ class AuthService {
   }
 
   // Registrar Usuario (Conecta con tu ruta /auth/registro)
-  static Future<bool> registrar(UserModel user) async {
+  static Future<bool> registrar(UserModel user, {required bool aceptaTerminos}) async {
     try {
       final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/auth/registro'),
         headers: ApiConfig.headers,
-        body: jsonEncode(user.toJson()),
+        // El backend exige aceptaTerminos en true y guarda la fecha en que se aceptó
+        body: jsonEncode({...user.toJson(), 'aceptaTerminos': aceptaTerminos}),
       );
 
       return response.statusCode == 201 || response.statusCode == 200;
