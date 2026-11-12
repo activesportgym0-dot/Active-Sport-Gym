@@ -1,4 +1,5 @@
 import { supabase } from "../config/supabase.js";
+import { esAdminPrincipal } from "../config/adminPrincipal.js";
 import {
     obtenerTodos,
     obtenerUsuarioPorId,
@@ -99,6 +100,15 @@ export const editarUsuario = async (req, res) => {
             return res.status(400).json({
                 mensaje: "No se proporcionaron datos para actualizar"
             });
+        }
+        // Nadie puede desactivar al administrador principal
+        if (campos.is_active === false) {
+            const { data: objetivo } = await obtenerUsuarioPorId(Number(id));
+            if (objetivo && esAdminPrincipal(objetivo.correo)) {
+                return res.status(403).json({
+                    mensaje: "No se puede desactivar al administrador principal"
+                });
+            }
         }
         // LIMPIAR CAMPOS DE TEXTO
         if (campos.nombre !== undefined) {
@@ -238,6 +248,16 @@ export const cambiarEstadoUsuario = async (req, res) => {
             });
         }
 
+        // El administrador principal no se puede desactivar
+        if (is_active === false) {
+            const { data: objetivo } = await obtenerUsuarioPorId(Number(id));
+            if (objetivo && esAdminPrincipal(objetivo.correo)) {
+                return res.status(403).json({
+                    mensaje: "No se puede desactivar al administrador principal"
+                });
+            }
+        }
+
         const { data, error } = await actualizarUsuario(Number(id), { is_active });
 
         if (error) {
@@ -304,6 +324,13 @@ export const cambiarRolUsuario = async (req, res) => {
             });
         }
 
+        // Al administrador principal nadie le cambia el rol
+        if (esAdminPrincipal(usuario.correo)) {
+            return res.status(403).json({
+                mensaje: "El rol del administrador principal no se puede cambiar"
+            });
+        }
+
         if (usuario.rol === rolNuevo) {
             return res.status(200).json({
                 mensaje: `El usuario ya tiene el rol ${rolNuevo}`,
@@ -367,6 +394,13 @@ export const borrarUsuario = async (req, res) => {
         if (!id || isNaN(id)) {
             return res.status(400).json({
                 mensaje: "El ID del usuario debe ser un número válido"
+            });
+        }
+        // El administrador principal no se puede eliminar
+        const { data: objetivo } = await obtenerUsuarioPorId(Number(id));
+        if (objetivo && esAdminPrincipal(objetivo.correo)) {
+            return res.status(403).json({
+                mensaje: "No se puede eliminar al administrador principal"
             });
         }
         // ELIMINAR

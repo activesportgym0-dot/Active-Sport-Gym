@@ -8,7 +8,7 @@ import {
     borrarUsuario
 } from "../controllers/usuarioController.js";
 
-import { verificarToken, verificarAdmin, verificarPropioOAdmin } from "../middlewares/authMiddleware.js";
+import { verificarToken, verificarAdmin, verificarAdminPrincipal, verificarPropioOAdmin } from "../middlewares/authMiddleware.js";
 
 const router = Router();
 
@@ -24,8 +24,8 @@ router.put("/:id", verificarToken, verificarPropioOAdmin, editarUsuario);
 // CAMBIAR ESTADO DE USUARIO - ACTIVAR / DESACTIVAR (Solo Admin)
 router.patch("/:id/estado", verificarToken, verificarAdmin, cambiarEstadoUsuario);
 
-// CAMBIAR ROL DE USUARIO - admin o cliente (Solo Admin)
-router.patch("/:id/rol", verificarToken, verificarAdmin, cambiarRolUsuario);
+// CAMBIAR ROL DE USUARIO - admin o cliente (Solo el Administrador Principal)
+router.patch("/:id/rol", verificarToken, verificarAdminPrincipal, cambiarRolUsuario);
 
 // ELIMINAR USUARIO (Solo Admin)
 router.delete("/:id", verificarToken, verificarAdmin, borrarUsuario);

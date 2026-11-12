@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { supabase } from '../config/supabase.js';
+import { esAdminPrincipal } from '../config/adminPrincipal.js';
 
 // 1. VERIFICA QUE EXISTA UN TOKEN VÁLIDO (USUARIO AUTENTICADO)
 // Además confirma en la base de datos que la cuenta siga existiendo y activa, y toma el rol de ahí:
@@ -23,7 +24,7 @@ export const verificarToken = async (req, res, next) => {
     try {
         const { data: usuario, error } = await supabase
             .from('usuarios')
-            .select('rol, is_active')
+            .select('rol, is_active, correo')
             .eq('id_usuario', decoded.id_usuario)
             .maybeSingle();
 
@@ -38,7 +39,12 @@ export const verificarToken = async (req, res, next) => {
             return res.status(403).json({ error: 'Tu cuenta está desactivada. Comunícate con el gimnasio.' });
         }
 
-        req.usuario = { ...decoded, rol: usuario.rol };
+        req.usuario = {
+            ...decoded,
+            rol: usuario.rol,
+            correo: usuario.correo,
+            esPrincipal: esAdminPrincipal(usuario.correo)
+        };
         next();
     } catch (err) {
         console.error('Error inesperado al validar la sesión:', err);
@@ -72,6 +78,15 @@ export const verificarPropioOAdmin = (req, res, next) => {
 
     if (!esPropio && !esAdmin) {
         return res.status(403).json({ error: 'Acceso denegado: solo puedes consultar o modificar tu propio perfil' });
+    }
+    next();
+};
+
+// 5. SOLO DEJA PASAR AL ADMINISTRADOR PRINCIPAL (activesportgym0@gmail.com)
+// Se usa en las acciones que solo ella puede hacer, como cambiar roles.
+export const verificarAdminPrincipal = (req, res, next) => {
+    if (req.usuario?.rol !== 'admin' || !req.usuario?.esPrincipal) {
+        return res.status(403).json({ error: 'Solo el administrador principal puede hacer esta acción' });
     }
     next();
 };
