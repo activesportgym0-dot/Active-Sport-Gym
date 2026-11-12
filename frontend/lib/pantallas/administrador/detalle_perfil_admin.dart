@@ -395,6 +395,12 @@ class _DetallePerfilAdminScreenState extends State<DetallePerfilAdminScreen> {
     final esAdmin = _rolActual == 'admin';
     final propia = _esMiPropiaCuenta;
 
+    // El administrador principal manda sobre todas: solo ella cambia roles y a ella nadie se lo cambia
+    final correoObjetivo =
+        (_perfil?.correo ?? widget.usuario['correo'] ?? '').toString().trim().toLowerCase();
+    final esPrincipalObjetivo = correoObjetivo == SessionService.correoAdminPrincipal;
+    final puedeCambiarRol = SessionService.esAdminPrincipal && !propia && !esPrincipalObjetivo;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -428,7 +434,11 @@ class _DetallePerfilAdminScreenState extends State<DetallePerfilAdminScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      esAdmin ? 'ADMINISTRADOR' : 'CLIENTE',
+                      esPrincipalObjetivo
+                          ? 'ADMINISTRADOR PRINCIPAL'
+                          : esAdmin
+                              ? 'ADMINISTRADOR'
+                              : 'CLIENTE',
                       style: const TextStyle(
                         color: AppColors.blancoPuro,
                         fontSize: 13,
@@ -437,17 +447,21 @@ class _DetallePerfilAdminScreenState extends State<DetallePerfilAdminScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      propia
-                          ? 'No puedes cambiar tu propio rol.'
-                          : esAdmin
-                              ? 'Tiene los mismos permisos que tú.'
-                              : 'Puedes darle permisos de administrador.',
+                      esPrincipalObjetivo
+                          ? 'Es la cuenta que manda: su rol no se puede cambiar.'
+                          : propia
+                              ? 'No puedes cambiar tu propio rol.'
+                              : !SessionService.esAdminPrincipal
+                                  ? 'Solo el administrador principal puede cambiar roles.'
+                                  : esAdmin
+                                      ? 'Tiene los mismos permisos que tú.'
+                                      : 'Puedes darle permisos de administrador.',
                       style: const TextStyle(color: AppColors.grisClaro, fontSize: 11),
                     ),
                   ],
                 ),
               ),
-              if (!propia)
+              if (puedeCambiarRol)
                 TextButton(
                   onPressed: _confirmarCambioRol,
                   child: Text(

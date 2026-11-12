@@ -67,6 +67,7 @@ class SesionGuardada {
     SessionService.token = token;
     SessionService.rol = prefs.getString(_kRol) ?? 'cliente';
     SessionService.nombreUsuario = prefs.getString(_kNombre) ?? '';
+    SessionService.correo = prefs.getString(_kCorreo) ?? '';
     SessionService.idUsuario = id;
 
     final r = await PerfilService.obtenerPerfil(id);
@@ -75,6 +76,7 @@ class SesionGuardada {
       // Se refrescan rol y nombre por si el administrador los cambió
       SessionService.rol = perfil.rol;
       SessionService.nombreUsuario = perfil.nombre;
+      SessionService.correo = perfil.correo;
       await prefs.setString(_kRol, perfil.rol);
       await prefs.setString(_kNombre, perfil.nombre);
       PerfilCache.guardar(perfil); // deja listos el menú y el perfil

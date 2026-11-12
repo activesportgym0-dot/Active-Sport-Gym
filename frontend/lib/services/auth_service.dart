@@ -9,7 +9,14 @@ class SessionService {
   static String token = '';
   static String rol = '';
   static String nombreUsuario = '';
+  static String correo = '';
   static int? idUsuario;
+
+  // Cuenta del administrador principal (la que manda). Aquí solo sirve para mostrar u ocultar
+  // opciones en pantalla; la regla de verdad la hace el backend.
+  static const String correoAdminPrincipal = 'activesportgym0@gmail.com';
+  static bool get esAdminPrincipal =>
+      rol == 'admin' && correo.trim().toLowerCase() == correoAdminPrincipal;
 
   // Método para limpiar los datos cuando el usuario cierre sesión.
   // Por defecto también borra lo que guardó "Recuérdame"; si no, la app volvería a entrar sola.
@@ -17,6 +24,7 @@ class SessionService {
     token = '';
     rol = '';
     nombreUsuario = '';
+    correo = '';
     idUsuario = null;
     if (borrarGuardada) SesionGuardada.olvidar();
   }
@@ -43,6 +51,7 @@ class AuthService {
         SessionService.token = data['token'] ?? '';
         SessionService.rol = usuarioData['rol'] ?? 'cliente';
         SessionService.nombreUsuario = usuarioData['nombre'] ?? '';
+        SessionService.correo = (usuarioData['correo'] ?? correo).toString();
         SessionService.idUsuario = usuarioData['id_usuario'];
 
         return {
