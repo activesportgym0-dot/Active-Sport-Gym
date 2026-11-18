@@ -1,11 +1,11 @@
 plugins {
-    id("com.android.application")
+    id("com.activesportgym.app")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
 android {
-    namespace = "com.example.frontend"
+    namespace = "com.activesportgym.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
