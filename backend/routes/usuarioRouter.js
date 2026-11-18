@@ -5,6 +5,7 @@ import {
     editarUsuario,
     cambiarEstadoUsuario,
     cambiarRolUsuario,
+    eliminarMiCuenta,
     borrarUsuario
 } from "../controllers/usuarioController.js";
 
@@ -26,6 +27,10 @@ router.patch("/:id/estado", verificarToken, verificarAdmin, cambiarEstadoUsuario
 
 // CAMBIAR ROL DE USUARIO - admin o cliente (Solo el Administrador Principal)
 router.patch("/:id/rol", verificarToken, verificarAdminPrincipal, cambiarRolUsuario);
+
+// ELIMINAR MI PROPIA CUENTA (cualquier usuario con sesión)
+// Va ANTES de "/:id", si no Express tomaría "mi-cuenta" como si fuera un id.
+router.delete("/mi-cuenta", verificarToken, eliminarMiCuenta);
 
 // ELIMINAR USUARIO (Solo Admin)
 router.delete("/:id", verificarToken, verificarAdmin, borrarUsuario);

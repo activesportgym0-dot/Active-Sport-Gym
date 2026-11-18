@@ -1,11 +1,34 @@
+import bcrypt from "bcrypt";
 import { supabase } from "../config/supabase.js";
 import { esAdminPrincipal } from "../config/adminPrincipal.js";
 import {
     obtenerTodos,
     obtenerUsuarioPorId,
+    obtenerUsuarioPorEmail,
     actualizarUsuario,
     eliminarUsuario
 } from "../models/usuarioModel.js";
+
+// Revisa que el usuario indicado NO sea el administrador principal.
+// Si no se puede comprobar (error al consultar), responde con error y NO continúa:
+// es más seguro frenar que dejar pasar una eliminación o desactivación por accidente.
+const validarNoEsPrincipal = async (id, res, accion) => {
+    const { data: objetivo, error } = await obtenerUsuarioPorId(Number(id));
+    if (error) {
+        console.error("Error al validar al administrador principal:", error);
+        res.status(500).json({
+            mensaje: "No fue posible validar el usuario. Intenta de nuevo."
+        });
+        return false;
+    }
+    if (objetivo && esAdminPrincipal(objetivo.correo)) {
+        res.status(403).json({
+            mensaje: `No se puede ${accion} al administrador principal`
+        });
+        return false;
+    }
+    return true;
+};
 
 // OBTENER TODOS LOS USUARIOS
 export const listarUsuarios = async (req, res) => {
@@ -103,12 +126,7 @@ export const editarUsuario = async (req, res) => {
         }
         // Nadie puede desactivar al administrador principal
         if (campos.is_active === false) {
-            const { data: objetivo } = await obtenerUsuarioPorId(Number(id));
-            if (objetivo && esAdminPrincipal(objetivo.correo)) {
-                return res.status(403).json({
-                    mensaje: "No se puede desactivar al administrador principal"
-                });
-            }
+            if (!(await validarNoEsPrincipal(id, res, "desactivar"))) return;
         }
         // LIMPIAR CAMPOS DE TEXTO
         if (campos.nombre !== undefined) {
@@ -250,12 +268,7 @@ export const cambiarEstadoUsuario = async (req, res) => {
 
         // El administrador principal no se puede desactivar
         if (is_active === false) {
-            const { data: objetivo } = await obtenerUsuarioPorId(Number(id));
-            if (objetivo && esAdminPrincipal(objetivo.correo)) {
-                return res.status(403).json({
-                    mensaje: "No se puede desactivar al administrador principal"
-                });
-            }
+            if (!(await validarNoEsPrincipal(id, res, "desactivar"))) return;
         }
 
         const { data, error } = await actualizarUsuario(Number(id), { is_active });
@@ -386,6 +399,73 @@ export const cambiarRolUsuario = async (req, res) => {
     }
 };
 
+// ELIMINAR MI PROPIA CUENTA (cualquier usuario con sesión; DELETE /usuarios/mi-cuenta)
+// Pide la contraseña para confirmar que es la persona dueña y no alguien con el teléfono prestado.
+export const eliminarMiCuenta = async (req, res) => {
+    try {
+        const idUsuario = Number(req.usuario?.id_usuario);
+        const contrasena = req.body?.contrasena ?? req.body?.["contraseña"];
+
+        if (!Number.isInteger(idUsuario)) {
+            return res.status(401).json({
+                mensaje: "No se pudo identificar tu cuenta. Inicia sesión de nuevo."
+            });
+        }
+
+        // La cuenta del administrador principal no se elimina desde la app
+        if (req.usuario?.esPrincipal) {
+            return res.status(403).json({
+                mensaje: "La cuenta del administrador principal no se puede eliminar"
+            });
+        }
+
+        if (!contrasena || typeof contrasena !== "string") {
+            return res.status(400).json({
+                mensaje: "Ingresa tu contraseña para confirmar que quieres eliminar tu cuenta"
+            });
+        }
+
+        // Se busca por correo porque ahí viene la contraseña cifrada (verificarToken ya dejó el correo en req.usuario)
+        const { data: usuario, error: errorBusqueda } = await obtenerUsuarioPorEmail(req.usuario.correo);
+        if (errorBusqueda || !usuario || usuario.id_usuario !== idUsuario) {
+            console.error("Error al buscar la cuenta a eliminar:", errorBusqueda);
+            return res.status(500).json({
+                mensaje: "No fue posible validar tu cuenta. Intenta de nuevo."
+            });
+        }
+
+        const passwordValida = await bcrypt.compare(contrasena, usuario.contraseña);
+        if (!passwordValida) {
+            return res.status(400).json({
+                mensaje: "La contraseña es incorrecta"
+            });
+        }
+
+        const { data, error } = await eliminarUsuario(idUsuario);
+        if (error) {
+            console.error("Error al eliminar la cuenta propia:", error);
+            return res.status(500).json({
+                mensaje: "No fue posible eliminar tu cuenta",
+                error: error.message
+            });
+        }
+        if (!data) {
+            return res.status(404).json({
+                mensaje: "Tu cuenta ya no existe"
+            });
+        }
+
+        return res.status(200).json({
+            mensaje: "Tu cuenta fue eliminada correctamente"
+        });
+    } catch (error) {
+        console.error("Error inesperado al eliminar la cuenta propia:", error);
+        return res.status(500).json({
+            mensaje: "Error interno del servidor"
+        });
+    }
+};
+
 // ELIMINAR USUARIO
 export const borrarUsuario = async (req, res) => {
     try {
@@ -397,12 +477,7 @@ export const borrarUsuario = async (req, res) => {
             });
         }
         // El administrador principal no se puede eliminar
-        const { data: objetivo } = await obtenerUsuarioPorId(Number(id));
-        if (objetivo && esAdminPrincipal(objetivo.correo)) {
-            return res.status(403).json({
-                mensaje: "No se puede eliminar al administrador principal"
-            });
-        }
+        if (!(await validarNoEsPrincipal(id, res, "eliminar"))) return;
         // ELIMINAR
         const { data, error } = await eliminarUsuario(
             Number(id)

@@ -7,6 +7,7 @@ import cors from "cors";
 
 import { conectaDB } from "./config/supabase.js";
 
+
 import usuarioRouter from "./routes/usuarioRouter.js";
 
 import perfilRouter from "./routes/perfilRouter.js";
@@ -26,6 +27,8 @@ import progresoRoutes from "./routes/progresoRouter.js";
 import notificacionesRouter from "./routes/notificacionesRoutes.js";
 
 import membresiaRouter from "./routes/membresiaRoutes.js";
+
+import { iniciarAvisosVencimiento } from "./jobs/avisoVencimientoMembresias.js";
 
 import categoriaProductoRouter from "./routes/categoriaProductoRoutes.js";
 
@@ -136,3 +139,4 @@ app.listen(PORT, () => {
   console.log(`Servidor escuchando el puerto ${PORT}`);
   console.log(`http://localhost:${PORT}`);
 });
+iniciarAvisosVencimiento();
