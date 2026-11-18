@@ -12,6 +12,7 @@ import 'package:frontend/services/membresia_service.dart';
 import 'package:frontend/services/perfil_cache.dart';
 import 'package:frontend/services/perfil_service.dart';
 import '../../../pantallas/cliente/menuLateral/entrenamiento_screen.dart';
+import 'package:frontend/pantallas/manualdeusuario.dart';
 
 /// Datos del menú guardados en memoria.
 /// Flutter construye el menú de nuevo cada vez que se abre; sin esto, cada apertura volvía a
@@ -365,7 +366,13 @@ class _MenuLateralState extends State<MenuLateral> {
                 context,
                 MaterialPageRoute(builder: (context) =>  HorariosYReglasClienteScreen()),
               );
+            }),
 
+            _buildMenuItem(Icons.picture_as_pdf_rounded, 'Manual de usuario', () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const PantallaManualUsuario()),
+              );
             }),
 
             const Divider(color: AppColors.grisMedio, height: 25, thickness: 0.5),

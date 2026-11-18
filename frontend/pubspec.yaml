@@ -17,6 +17,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   url_launcher: ^6.3.3
   shared_preferences: ^2.3.2
+  flutter_pdfview: ^1.4.0   # <--- ¡Añadida aquí!
+  path_provider: ^2.1.2     # <--- ¡Añadida para gestionar archivos temporales del PDF!
 
 dev_dependencies:
   flutter_test:
@@ -30,36 +32,30 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/pdf/               # <--- ¡Añadida para que el sistema lea tu manual!
 
   fonts:
     - family: Teko
       fonts:
         - asset: assets/fonts/Teko-Regular.ttf
-
     - family: Oswald
       fonts:
         - asset: assets/fonts/Oswald-Regular.ttf
-
     - family: Roboto
       fonts:
         - asset: assets/fonts/Roboto-Regular.ttf
-
     - family: RobotoCondensed
       fonts:
         - asset: assets/fonts/RobotoCondensed-Regular.ttf
-
     - family: BebasNeue
       fonts:
         - asset: assets/fonts/BebasNeue-Regular.ttf
-
     - family: Nosifer
       fonts:
         - asset: assets/fonts/Nosifer-Regular.ttf
-
     - family: VinaSans
       fonts:
         - asset: assets/fonts/VinaSans-Regular.ttf
-
     - family: Inter
       fonts:
         - asset: assets/fonts/Inter_24pt-Regular.ttf

@@ -3,6 +3,7 @@ import 'package:frontend/core/colores.dart';
 import 'package:frontend/pantallas/administrador/Gestionusuariosadmin.dart';
 import 'package:frontend/pantallas/historia_gym.dart';
 import 'package:frontend/pantallas/administrador/horarios_y_reglas.dart';
+import 'package:frontend/pantallas/manualdeusuario.dart'; // <--- Asegúrate de importar tu pantalla aquí
 import 'package:frontend/registro-recuperar/Login.dart';
 import 'package:frontend/models/perfil_model.dart';
 import 'package:frontend/services/auth_service.dart'; // SessionService
@@ -237,7 +238,6 @@ class _MenuLateralAdministradorState extends State<MenuLateralAdministrador> {
                                 width: 44,
                                 height: 44,
                                 fit: BoxFit.cover,
-                                // Si la imagen no carga, se queda el ícono de siempre
                                 errorBuilder: (context, error, stackTrace) => const Icon(
                                   Icons.admin_panel_settings,
                                   color: AppColors.blancoPuro,
@@ -321,6 +321,13 @@ class _MenuLateralAdministradorState extends State<MenuLateralAdministrador> {
                 MaterialPageRoute(builder: (context) => const HorariosYReglasScreen()),
               );
             }),
+            // NUEVO: Opción de Manual de Usuario en el menú de administrador
+            _buildMenuItem(Icons.picture_as_pdf_rounded, 'Manual de usuario', () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const PantallaManualUsuario()),
+              );
+            }),
 
             const Divider(color: AppColors.grisMedio, height: 25, thickness: 0.5),
 
@@ -336,9 +343,7 @@ class _MenuLateralAdministradorState extends State<MenuLateralAdministrador> {
             ),
             const SizedBox(height: 5),
             _buildMenuItem(Icons.logout, 'Cerrar sesión', () {
-              // Se borra lo guardado para que el siguiente usuario no vea datos de este
               PerfilCache.limpiar();
-              // Borra la sesión (también la que guardó "Recuérdame") y vuelve al login sin dejar pantallas atrás
               SessionService.limpiarSesion();
               Navigator.pushAndRemoveUntil(
                 context,
@@ -348,7 +353,7 @@ class _MenuLateralAdministradorState extends State<MenuLateralAdministrador> {
             }, isRed: true),
             const SizedBox(height: 20),
 
-            // 3. Tarjeta de Estado del Sistema (ahora refleja si el servidor responde de verdad)
+            // 3. Tarjeta de Estado del Sistema
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
