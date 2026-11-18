@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/user_model.dart';
 import 'api_config.dart';
-import 'auth_service.dart'; // 👈 Importa auth_service para acceder a SessionService
+import 'auth_service.dart'; 
 
 class UsuarioService {
   static const String _rutaUsuarios = '/usuarios';
@@ -125,6 +125,33 @@ class UsuarioService {
       return {
         'success': false,
         'message': _mensajeError(response, 'No fue posible cambiar el rol'),
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
+
+  // ELIMINAR MI PROPIA CUENTA (el usuario confirma con su contraseña)
+  static Future<Map<String, dynamic>> eliminarMiCuenta(String contrasena) async {
+    if (!_haySesion) return {'success': false, 'message': _sinSesion};
+
+    try {
+      final response = await http.delete(
+        Uri.parse('${ApiConfig.baseUrl}$_rutaUsuarios/mi-cuenta'),
+        headers: _headersJson,
+        body: jsonEncode({'contrasena': contrasena}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = _decodificarRespuesta(response.body);
+        return {
+          'success': true,
+          'message': data['mensaje'] ?? 'Tu cuenta fue eliminada correctamente',
+        };
+      }
+      return {
+        'success': false,
+        'message': _mensajeError(response, 'No fue posible eliminar tu cuenta'),
       };
     } catch (e) {
       return {'success': false, 'message': 'Error de conexión: $e'};

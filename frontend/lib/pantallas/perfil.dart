@@ -7,6 +7,8 @@ import 'package:frontend/models/perfil_model.dart';
 import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/services/perfil_cache.dart';
 import 'package:frontend/services/perfil_service.dart';
+import 'package:frontend/services/usuario_service.dart';
+import 'package:frontend/registro-recuperar/Login.dart';
 class PerfilScreen extends StatefulWidget {
   const PerfilScreen({super.key});
   @override
@@ -240,6 +242,120 @@ class _PerfilScreenState extends State<PerfilScreen> {
       _mostrarMensaje('No se pudo seleccionar la imagen: $e', exito: false);
     }
   }
+  // Eliminar la propia cuenta: pide la contraseña para confirmar y, si todo sale bien, vuelve al login
+  Future<void> _confirmarEliminarCuenta() async {
+    final contrasenaController = TextEditingController();
+    bool verContrasena = false;
+    bool eliminando = false;
+    String? errorDialogo;
+
+    final eliminada = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogo) => AlertDialog(
+          backgroundColor: AppColors.grisOscuro,
+          title: const Text(
+            'Eliminar mi cuenta',
+            style: TextStyle(color: Colors.white, fontFamily: 'Oswald'),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Se borrarán tu cuenta y tus datos (perfil, rutinas, progreso y más). Esta acción no se puede deshacer.\n\nPara confirmar, escribe tu contraseña.',
+                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: contrasenaController,
+                  obscureText: !verContrasena,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Contraseña',
+                    labelStyle: const TextStyle(color: AppColors.verdePrimario),
+                    enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+                    focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: AppColors.verdePrimario)),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        verContrasena ? Icons.visibility_off : Icons.visibility,
+                        color: Colors.grey,
+                        size: 20,
+                      ),
+                      onPressed: () => setDialogo(() => verContrasena = !verContrasena),
+                    ),
+                  ),
+                ),
+                if (errorDialogo != null) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    errorDialogo!,
+                    style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: eliminando ? null : () => Navigator.pop(dialogContext, false),
+              child: const Text('CANCELAR', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+              onPressed: eliminando
+                  ? null
+                  : () async {
+                      final contrasena = contrasenaController.text;
+                      if (contrasena.isEmpty) {
+                        setDialogo(() => errorDialogo = 'Escribe tu contraseña para confirmar.');
+                        return;
+                      }
+                      setDialogo(() {
+                        eliminando = true;
+                        errorDialogo = null;
+                      });
+                      final r = await UsuarioService.eliminarMiCuenta(contrasena);
+                      if (r['success'] == true) {
+                        if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                      } else {
+                        setDialogo(() {
+                          eliminando = false;
+                          errorDialogo = r['message'].toString();
+                        });
+                      }
+                    },
+              child: Text(
+                eliminando ? 'ELIMINANDO...' : 'ELIMINAR',
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    contrasenaController.dispose();
+    if (eliminada != true || !mounted) return;
+
+    // La cuenta ya no existe: se borra la sesión (también la de "Recordarme") y se vuelve al login
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Tu cuenta fue eliminada correctamente'),
+        backgroundColor: Colors.green,
+      ),
+    );
+    PerfilCache.limpiar();
+    SessionService.limpiarSesion();
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -401,6 +517,30 @@ class _PerfilScreenState extends State<PerfilScreen> {
                     child: Text('GUARDAR CAMBIOS', style: EstiloTexto.botonPrincipal.copyWith(color: AppColors.fondoNegro, fontSize: 14)),
                   ),
                 ),
+
+              // Eliminar la propia cuenta (la del administrador principal no se puede eliminar)
+              if (!_isEditing && !SessionService.esAdminPrincipal) ...[
+                const SizedBox(height: 24),
+                const Divider(color: AppColors.grisMedio, thickness: 0.5),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.redAccent, width: 1.2),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: _guardando ? null : _confirmarEliminarCuenta,
+                    icon: const Icon(Icons.delete_forever_outlined, color: Colors.redAccent, size: 20),
+                    label: const Text(
+                      'ELIMINAR MI CUENTA',
+                      style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
             ],
           ),
         ),

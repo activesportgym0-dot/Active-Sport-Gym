@@ -6,7 +6,7 @@ import 'package:frontend/core/colores.dart';
 // ============================================================================
 const String _nombreGimnasio = 'Active Sport Gym';
 const String _ubicacionGimnasio = 'Garzón, Huila, Colombia';
-const String _correoContacto = 'activesportgym0@gmail.com'; // <-- pon el correo real del gimnasio
+const String _correoContacto = 'CORREO_DE_CONTACTO@ejemplo.com'; // <-- pon el correo real del gimnasio
 const String _ultimaActualizacion = 'noviembre de 2026';
 
 class _Seccion {
@@ -15,7 +15,9 @@ class _Seccion {
   const _Seccion(this.titulo, this.texto);
 }
 
+// ---------------------------------------------------------------------------
 // TÉRMINOS Y CONDICIONES
+// ---------------------------------------------------------------------------
 const List<_Seccion> _terminos = [
   _Seccion(
     '1. Aceptación',
@@ -51,7 +53,7 @@ const List<_Seccion> _terminos = [
   ),
   _Seccion(
     '9. Suspensión y eliminación de la cuenta',
-    'El gimnasio puede suspender o eliminar una cuenta si se incumplen estos términos. Tú puedes pedir que eliminemos tu cuenta y tus datos escribiendo a $_correoContacto.',
+    'El gimnasio puede suspender o eliminar una cuenta si se incumplen estos términos. Tú puedes eliminar tu cuenta cuando quieras desde la aplicación (Mi perfil > Eliminar mi cuenta) o pedirlo escribiendo a $_correoContacto.',
   ),
   _Seccion(
     '10. Cambios en estos términos',
@@ -77,7 +79,7 @@ const List<_Seccion> _datos = [
   ),
   _Seccion(
     '3. Para qué usamos tus datos',
-    '• Crear tu cuenta, verificar tu correo y confirmar que eres cliente del gimnasio.\n• Que el administrador pueda activar o desactivar tu cuenta.\n• Gestionar tu membresía, tus compras y tu entrenamiento.\n• Mostrarte tu progreso y personalizar rutinas y recomendaciones.\n• Enviarte comunicaciones del servicio, como el código de verificación.\n• Mantener la seguridad de la aplicación.',
+    '• Crear tu cuenta, verificar tu correo y confirmar que eres cliente del gimnasio.\n• Que el administrador pueda activar o desactivar tu cuenta.\n• Gestionar tu membresía, tus compras y tu entrenamiento.\n• Mostrarte tu progreso y personalizar rutinas y recomendaciones.\n• Enviarte comunicaciones del servicio, como el código de verificación y el aviso cuando tu membresía esté por vencer.\n• Mantener la seguridad de la aplicación.',
   ),
   _Seccion(
     '4. Datos sensibles',
@@ -89,7 +91,7 @@ const List<_Seccion> _datos = [
   ),
   _Seccion(
     '6. Tus derechos',
-    'Como titular de tus datos tienes derecho a:\n• Conocer, actualizar y rectificar tus datos.\n• Pedir prueba de la autorización que diste.\n• Saber cómo usamos tus datos.\n• Presentar quejas ante la Superintendencia de Industria y Comercio.\n• Revocar tu autorización y pedir que eliminemos tus datos, cuando la ley lo permita.\n\nPuedes actualizar muchos de tus datos desde tu perfil en la aplicación.',
+    'Como titular de tus datos tienes derecho a:\n• Conocer, actualizar y rectificar tus datos.\n• Pedir prueba de la autorización que diste.\n• Saber cómo usamos tus datos.\n• Presentar quejas ante la Superintendencia de Industria y Comercio.\n• Revocar tu autorización y pedir que eliminemos tus datos, cuando la ley lo permita.\n\nPuedes actualizar muchos de tus datos y eliminar tu cuenta desde tu perfil en la aplicación (Mi perfil > Eliminar mi cuenta).',
   ),
   _Seccion(
     '7. Cómo ejercer tus derechos',
@@ -111,7 +113,7 @@ const List<_Seccion> _datos = [
 
 /// Términos y condiciones + política de tratamiento de datos.
 /// Se abre desde el registro y desde el inicio de sesión.
-/// +0 = términos y condiciones, 1 = política de datos.
+/// [tabInicial]: 0 = términos y condiciones, 1 = política de datos.
 class TerminosCondicionesScreen extends StatelessWidget {
   final int tabInicial;
 
