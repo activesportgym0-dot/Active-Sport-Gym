@@ -1,9 +1,11 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:frontend/core/colores.dart';
 import 'package:frontend/core/estilotexto.dart';
+import 'package:frontend/models/user_model.dart';
+import 'package:frontend/services/usuario_service.dart';
+
 class ModalCrearNotificacion extends StatefulWidget {
   final Function(Map<String, dynamic> nuevaNoti) onCrear;
   const ModalCrearNotificacion({super.key, required this.onCrear});
@@ -13,10 +15,17 @@ class ModalCrearNotificacion extends StatefulWidget {
 class _ModalCrearNotificacionState extends State<ModalCrearNotificacion> {
   final tituloController = TextEditingController();
   final mensajeController = TextEditingController();
-  final idUsuarioController = TextEditingController();
+  final busquedaController = TextEditingController();
   String tipoSeleccionado = 'stock';
   bool enviarATodos = true;
   String? errorMensaje;
+
+  // Destinatario: el administrador busca al cliente por nombre (no necesita saber su ID)
+  List<UserModel> _clientes = [];
+  bool _cargandoClientes = false;
+  bool _clientesCargados = false;
+  String? _errorClientes;
+  UserModel? _clienteSeleccionado;
 
   // Imagen opcional de la notificación (el backend la sube a Cloudinary)
   XFile? _imagen;
@@ -27,9 +36,239 @@ class _ModalCrearNotificacionState extends State<ModalCrearNotificacion> {
   void dispose() {
     tituloController.dispose();
     mensajeController.dispose();
-    idUsuarioController.dispose();
+    busquedaController.dispose();
     super.dispose();
   }
+
+  // ───────────── Buscador de clientes ─────────────
+
+  // Quita tildes y mayúsculas para que "perez" encuentre "Pérez"
+  String _normalizar(String texto) {
+    const conTilde = 'áàäâéèëêíìïîóòöôúùüûñÁÀÄÂÉÈËÊÍÌÏÎÓÒÖÔÚÙÜÛÑ';
+    const sinTilde = 'aaaaeeeeiiiioooouuuunAAAAEEEEIIIIOOOOUUUUN';
+    var resultado = texto;
+    for (var i = 0; i < conTilde.length; i++) {
+      resultado = resultado.replaceAll(conTilde[i], sinTilde[i]);
+    }
+    return resultado.toLowerCase().trim();
+  }
+
+  String _nombreCompleto(UserModel u) => '${u.nombre} ${u.apellido}'.trim();
+
+  Future<void> _cargarClientes() async {
+    setState(() {
+      _cargandoClientes = true;
+      _errorClientes = null;
+    });
+
+    final resultado = await UsuarioService.listarUsuarios();
+    if (!mounted) return;
+
+    if (resultado['success'] == true) {
+      final todos = resultado['usuarios'] as List<UserModel>;
+      // Solo clientes con la cuenta activa, ordenados por nombre
+      final clientes = todos.where((u) => u.rol == 'cliente' && u.isActive && u.idUsuario != null).toList()
+        ..sort((a, b) => _normalizar(_nombreCompleto(a)).compareTo(_normalizar(_nombreCompleto(b))));
+      setState(() {
+        _clientes = clientes;
+        _clientesCargados = true;
+        _cargandoClientes = false;
+      });
+    } else {
+      setState(() {
+        _errorClientes = (resultado['message'] ?? 'No se pudieron cargar los clientes').toString();
+        _cargandoClientes = false;
+      });
+    }
+  }
+
+  // Coincide si TODAS las palabras escritas aparecen en el nombre, apellido, correo o cédula
+  List<UserModel> get _resultados {
+    final palabras = _normalizar(busquedaController.text).split(' ').where((p) => p.isNotEmpty).toList();
+    if (palabras.isEmpty) return [];
+    return _clientes.where((u) {
+      final texto = _normalizar('${u.nombre} ${u.apellido} ${u.correo} ${u.cedula ?? ''}');
+      return palabras.every(texto.contains);
+    }).take(6).toList();
+  }
+
+  void _seleccionarCliente(UserModel cliente) {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _clienteSeleccionado = cliente;
+      busquedaController.clear();
+      errorMensaje = null;
+    });
+  }
+
+  Widget _buscadorDeCliente() {
+    // Ya eligió a alguien: se muestra su tarjeta con una X para cambiarlo
+    final elegido = _clienteSeleccionado;
+    if (elegido != null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.verdePrimario.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.verdePrimario),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.person, color: AppColors.verdePrimario, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _nombreCompleto(elegido),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: EstiloTexto.enlaceNegritaRoboto.copyWith(fontSize: 13),
+                  ),
+                  Text(
+                    elegido.correo,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: EstiloTexto.textoNormalRoboto.copyWith(fontSize: 11, color: AppColors.grisClaro),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: 'Cambiar cliente',
+              constraints: const BoxConstraints(),
+              padding: EdgeInsets.zero,
+              icon: const Icon(Icons.close, color: AppColors.verdePrimario, size: 20),
+              onPressed: () => setState(() => _clienteSeleccionado = null),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final resultados = _resultados;
+    final hayTexto = busquedaController.text.trim().isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: busquedaController,
+          style: EstiloTexto.campoTexto,
+          onChanged: (_) => setState(() => errorMensaje = null),
+          decoration: InputDecoration(
+            labelText: 'Buscar cliente por nombre',
+            labelStyle: EstiloTexto.hintTexto,
+            prefixIcon: const Icon(Icons.search, color: AppColors.verdePrimario),
+            suffixIcon: hayTexto
+                ? IconButton(
+                    icon: const Icon(Icons.close, color: AppColors.grisMedio, size: 18),
+                    onPressed: () => setState(() => busquedaController.clear()),
+                  )
+                : null,
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: AppColors.grisMedio.withOpacity(0.5)),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            focusedBorder: const OutlineInputBorder(
+              borderSide: BorderSide(color: AppColors.verdePrimario),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (_cargandoClientes)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(color: AppColors.verdePrimario, strokeWidth: 2),
+              ),
+            ),
+          )
+        else if (_errorClientes != null)
+          Row(
+            children: [
+              Expanded(
+                child: Text(_errorClientes!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+              ),
+              TextButton(
+                onPressed: _cargarClientes,
+                child: Text('REINTENTAR', style: EstiloTexto.enlaceNegritaRoboto.copyWith(fontSize: 11)),
+              ),
+            ],
+          )
+        else if (!hayTexto)
+          Text(
+            _clientesCargados
+                ? 'Escribe el nombre o apellido del cliente (${_clientes.length} clientes activos).'
+                : '',
+            style: EstiloTexto.hintTexto.copyWith(fontSize: 11),
+          )
+        else if (resultados.isEmpty)
+          Text('No se encontró ningún cliente con ese nombre.', style: EstiloTexto.hintTexto.copyWith(fontSize: 12))
+        else
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.grisOscuro,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.grisMedio.withOpacity(0.4)),
+            ),
+            child: Column(
+              children: [
+                for (var i = 0; i < resultados.length; i++) ...[
+                  if (i > 0) Divider(height: 1, color: Colors.white.withOpacity(0.08)),
+                  InkWell(
+                    onTap: () => _seleccionarCliente(resultados[i]),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 14,
+                            backgroundColor: AppColors.verdePrimario.withOpacity(0.2),
+                            child: Text(
+                              _nombreCompleto(resultados[i]).isEmpty
+                                  ? '?'
+                                  : _nombreCompleto(resultados[i])[0].toUpperCase(),
+                              style: const TextStyle(color: AppColors.verdePrimario, fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _nombreCompleto(resultados[i]),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: EstiloTexto.textoNormalRoboto.copyWith(color: Colors.white, fontSize: 13),
+                                ),
+                                Text(
+                                  resultados[i].correo,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: EstiloTexto.textoNormalRoboto.copyWith(fontSize: 11, color: AppColors.grisMedio),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ───────────── Imagen ─────────────
 
   Future<void> _seleccionarImagen() async {
     try {
@@ -145,28 +384,15 @@ class _ModalCrearNotificacionState extends State<ModalCrearNotificacion> {
                   onChanged: (val) {
                     setState(() {
                       enviarATodos = val;
+                      errorMensaje = null;
                     });
+                    // Al elegir "un cliente específico" se cargan los clientes (una sola vez)
+                    if (!val && !_clientesCargados && !_cargandoClientes) _cargarClientes();
                   },
                 ),
                 if (!enviarATodos) ...[
                   const SizedBox(height: 8),
-                  TextField(
-                    controller: idUsuarioController,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    style: EstiloTexto.campoTexto,
-                    decoration: InputDecoration(
-                      labelText: 'ID del Usuario específico',
-                      labelStyle: EstiloTexto.hintTexto,
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: AppColors.grisMedio.withOpacity(0.5)),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      focusedBorder: const OutlineInputBorder(
-                        borderSide: BorderSide(color: AppColors.verdePrimario),
-                      ),
-                    ),
-                  ),
+                  _buscadorDeCliente(),
                 ],
                 const SizedBox(height: 12),
                 Text(
@@ -263,9 +489,9 @@ class _ModalCrearNotificacionState extends State<ModalCrearNotificacion> {
 
                     int? idUsuario;
                     if (!enviarATodos) {
-                      idUsuario = int.tryParse(idUsuarioController.text.trim());
-                      if (idUsuario == null || idUsuario <= 0) {
-                        setState(() => errorMensaje = 'Ingresa un ID de usuario válido.');
+                      idUsuario = _clienteSeleccionado?.idUsuario;
+                      if (idUsuario == null) {
+                        setState(() => errorMensaje = 'Busca y selecciona un cliente de la lista.');
                         return;
                       }
                     }
