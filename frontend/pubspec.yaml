@@ -2,7 +2,7 @@ name: frontend
 description: "Active Sport Gym es una aplicación móvil para la gestión de un gimnasio, que permite a los usuarios registrarse, iniciar sesión, ver y reservar clases, acceder a su historial de entrenamiento y recibir notificaciones sobre eventos y promociones."
 publish_to: 'none'
 
-version: 2.0.0+2
+version: 3.0.0+3
 
 environment:
   sdk: '>=3.11.5 <4.0.0'
