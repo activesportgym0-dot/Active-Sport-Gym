@@ -4,7 +4,7 @@ import 'package:frontend/core/colores.dart';
 // DATOS DEL GIMNASIO QUE APARECEN EN LOS TEXTOS: CÁMBIALOS AQUÍ, EN UN SOLO LUGAR
 const String _nombreGimnasio = 'Active Sport Gym';
 const String _ubicacionGimnasio = 'Garzón, Huila, Colombia';
-const String _correoContacto = 'activesportgym0@ejemplo.com'; 
+const String _correoContacto = 'activesportgym0@gmail.com'; 
 const String _ultimaActualizacion = 'noviembre de 2026';
 
 class _Seccion {
