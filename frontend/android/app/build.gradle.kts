@@ -31,6 +31,15 @@ val canSignRelease = hasKeystoreProperties &&
     releaseStorePassword != null &&
     releaseKeyAlias != null &&
     releaseKeyPassword != null
+println("========== DIAGNOSTICO FIRMA ==========")
+println("KEY PROPERTIES: ${keystorePropertiesFile.exists()}")
+println("STORE FILE: $releaseStoreFile")
+println("STORE EXISTS: ${releaseStoreFile?.exists()}")
+println("STORE PASSWORD: ${releaseStorePassword != null}")
+println("KEY PASSWORD: ${releaseKeyPassword != null}")
+println("ALIAS: $releaseKeyAlias")
+println("CAN SIGN RELEASE: $canSignRelease")
+println("=======================================")
 
 android {
     namespace = "com.activesportgym.app"

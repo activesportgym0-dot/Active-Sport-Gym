@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/colores.dart';
 
-// ============================================================================
 // DATOS DEL GIMNASIO QUE APARECEN EN LOS TEXTOS: CÁMBIALOS AQUÍ, EN UN SOLO LUGAR
-// ============================================================================
 const String _nombreGimnasio = 'Active Sport Gym';
 const String _ubicacionGimnasio = 'Garzón, Huila, Colombia';
-const String _correoContacto = 'CORREO_DE_CONTACTO@ejemplo.com'; // <-- pon el correo real del gimnasio
+const String _correoContacto = 'activesportgym0@ejemplo.com'; 
 const String _ultimaActualizacion = 'noviembre de 2026';
 
 class _Seccion {
@@ -15,9 +13,7 @@ class _Seccion {
   const _Seccion(this.titulo, this.texto);
 }
 
-// ---------------------------------------------------------------------------
 // TÉRMINOS Y CONDICIONES
-// ---------------------------------------------------------------------------
 const List<_Seccion> _terminos = [
   _Seccion(
     '1. Aceptación',
@@ -65,9 +61,7 @@ const List<_Seccion> _terminos = [
   ),
 ];
 
-// ---------------------------------------------------------------------------
 // POLÍTICA DE TRATAMIENTO DE DATOS PERSONALES (Ley 1581 de 2012, Colombia)
-// ---------------------------------------------------------------------------
 const List<_Seccion> _datos = [
   _Seccion(
     '1. Quién es el responsable',
