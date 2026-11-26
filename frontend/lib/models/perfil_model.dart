@@ -15,6 +15,7 @@ class PerfilModel {
   final String? fotoPerfil;
   final String? municipio; // dónde vive (ej. Garzón)
   final String? direccion; // barrio, vereda o dirección
+  final String? departamento; // departamento donde vive (ej. Huila)
 
   const PerfilModel({
     required this.idUsuario,
@@ -31,6 +32,7 @@ class PerfilModel {
     this.fotoPerfil,
     this.direccion,
     this.municipio,
+    this.departamento,
   });
 
   String get nombreCompleto => '$nombre $apellido'.trim();
@@ -71,6 +73,7 @@ class PerfilModel {
       fotoPerfil: foto.isEmpty ? null : foto,
       municipio: (json['municipio'] ?? '').toString(),
       direccion: (json['direccion'] ?? '').toString(),
+      departamento: (json['departamento'] ?? '').toString(),
     );
   }
 }
