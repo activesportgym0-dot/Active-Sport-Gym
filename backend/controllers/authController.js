@@ -6,76 +6,138 @@ import { crearPerfilAutomatico } from "../models/perfilModel.js";
 import { enviarCodigoVerificacion } from "../utils/emails/emailCodigoVerificacion.js";
 
 // REGISTRO DE USUARIOS CON VALIDACIÓN DE CONFIRMAR CONTRASEÑA
+
 export const registro = async (req, res) => {
   try {
-    let { 
-      nombre, 
-      apellido, 
-      correo, 
-      telefono, 
-      cedula, 
-      edad, 
-      peso, 
-      altura, 
-      contraseña, 
+    let {
+      nombre,
+      apellido,
+      correo,
+      telefono,
+      cedula,
+      edad,
+      peso,
+      altura,
+      contraseña,
       confirmarContrasena,
       municipio,
       direccion,
+      departamento,
       aceptaTerminos
     } = req.body;
 
-    // 1. Validar que ningún campo obligatorio esté vacío
-    if (!nombre || !apellido || !correo || !telefono || !cedula || !edad || !peso || !altura || !contraseña || !confirmarContrasena || !municipio || !direccion) {
+    // 1. Validar campos obligatorios.
+    // Edad, peso y altura son opcionales.
+    if (
+      !nombre ||
+      !apellido ||
+      !correo ||
+      !telefono ||
+      !cedula ||
+      !contraseña ||
+      !confirmarContrasena ||
+      !municipio ||
+      !direccion ||
+      !departamento
+    ) {
       return res.status(400).json({
-        mensaje: "Todos los campos son requeridos"
+        mensaje: "Todos los campos obligatorios deben estar completos"
       });
     }
 
-    // Debe haber aceptado los términos y condiciones y la política de datos
+    // 2. Validar aceptación de términos.
     if (aceptaTerminos !== true) {
       return res.status(400).json({
         mensaje: "Debes aceptar los términos y condiciones y la política de tratamiento de datos para registrarte"
       });
     }
 
-    // 2. Validar que la contraseña y la confirmación sean idénticas
+    // 3. Validar contraseñas.
     if (contraseña !== confirmarContrasena) {
       return res.status(400).json({
         mensaje: "Las contraseñas no coinciden"
       });
     }
 
-    // Limpieza y formateo de campos de texto
+    // 4. Limpiar datos.
     nombre = nombre.trim();
     apellido = apellido.trim();
     correo = correo.trim().toLowerCase();
     telefono = telefono.trim();
+    cedula = String(cedula).trim();
     municipio = String(municipio).trim();
     direccion = String(direccion).trim();
+    departamento = String(departamento).trim();
 
-    if (!municipio || !direccion) {
+    // 5. Validar ubicación.
+    if (!municipio || !direccion || !departamento) {
       return res.status(400).json({
-        mensaje: "El municipio y la dirección son requeridos"
-      });
-    }
-    if (municipio.length > 100 || direccion.length > 150) {
-      return res.status(400).json({
-        mensaje: "El municipio (máx. 100) o la dirección (máx. 150) son demasiado largos"
+        mensaje: "El municipio, la dirección y el departamento son requeridos"
       });
     }
 
-    // Validar formato del correo
-    const expresionCorreo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (municipio.length > 100 || direccion.length > 150 || departamento.length > 100) {
+      return res.status(400).json({
+        mensaje: "El municipio (máx. 100), la dirección (máx. 150) o el departamento (máx. 100) son demasiado largos"
+      });
+    }
+
+    // 6. Validar correo.
+    const expresionCorreo = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
     if (!expresionCorreo.test(correo)) {
       return res.status(400).json({
         mensaje: "El correo electrónico no tiene un formato válido"
       });
     }
 
-    // 3. Verificar disponibilidad del correo
-    const { data: usuarioExistente, error: errorBusqueda } = await obtenerUsuarioPorEmail(correo);
+    // 7. Validar edad, peso y altura (opcionales).
+    const edadFinal = edad === null || edad === undefined || edad === ""
+      ? null
+      : Number(edad);
+
+    const pesoFinal = peso === null || peso === undefined || peso === ""
+      ? null
+      : Number(peso);
+
+    const alturaFinal = altura === null || altura === undefined || altura === ""
+      ? null
+      : Number(altura);
+
+    if (
+      edadFinal !== null &&
+      (!Number.isInteger(edadFinal) || edadFinal < 1 || edadFinal > 120)
+    ) {
+      return res.status(400).json({
+        mensaje: "La edad debe estar entre 1 y 120 años"
+      });
+    }
+
+    if (
+      pesoFinal !== null &&
+      (!Number.isFinite(pesoFinal) || pesoFinal <= 0)
+    ) {
+      return res.status(400).json({
+        mensaje: "El peso debe ser un número mayor que cero"
+      });
+    }
+
+    if (
+      alturaFinal !== null &&
+      (!Number.isFinite(alturaFinal) || alturaFinal <= 0)
+    ) {
+      return res.status(400).json({
+        mensaje: "La altura debe ser un número mayor que cero"
+      });
+    }
+
+    // 8. Verificar disponibilidad del correo.
+    const { data: usuarioExistente, error: errorBusqueda } =
+      await obtenerUsuarioPorEmail(correo);
+
     if (errorBusqueda) {
       console.error("Error al verificar correo:", errorBusqueda);
+
       return res.status(500).json({
         mensaje: "Error al verificar la disponibilidad del correo"
       });
@@ -87,53 +149,68 @@ export const registro = async (req, res) => {
       });
     }
 
-    // 4. Encriptar contraseña y definir rol por defecto
+    // 9. Encriptar contraseña.
     const hashedPassword = await bcrypt.hash(contraseña, 10);
     const rolPorDefecto = "cliente";
 
-    // 5. Generar código de verificación (6 dígitos, expira en 15 min)
-    const codigoVerificacion = Math.floor(100000 + Math.random() * 900000).toString();
-    const codigoVerificacionExpiracion = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    // 10. Generar código de verificación.
+    const codigoVerificacion = Math.floor(
+      100000 + Math.random() * 900000
+    ).toString();
 
-    // 6. Insertar en la base de datos
+    const codigoVerificacionExpiracion = new Date(
+      Date.now() + 15 * 60 * 1000
+    ).toISOString();
+
+    // 11. Crear usuario.
     const { data: usuarioCreado, error } = await crearUser(
       nombre,
       apellido,
       correo,
       telefono,
       cedula,
-      edad,
-      peso,
-      altura,
+      edadFinal,
+      pesoFinal,
+      alturaFinal,
       hashedPassword,
       rolPorDefecto,
       codigoVerificacion,
       codigoVerificacionExpiracion,
       municipio,
       direccion,
-      new Date().toISOString() // fecha y hora en que aceptó los términos y condiciones
+      departamento,
+      new Date().toISOString()
     );
 
     if (error) {
       console.error("Error al crear usuario:", error);
+
       if (error.code === "23505") {
         return res.status(409).json({
           mensaje: "El correo, la cédula o el teléfono ya están registrados"
         });
       }
+
       return res.status(500).json({
         mensaje: "Error al crear el usuario en la base de datos"
       });
     }
 
-    // 7. Crear perfil automático
-    const { data: perfilCreado, error: errorPerfil } = await crearPerfilAutomatico(usuarioCreado.id_usuario);
+    // 12. Crear perfil automático.
+    const { data: perfilCreado, error: errorPerfil } =
+      await crearPerfilAutomatico(usuarioCreado.id_usuario);
+
     if (errorPerfil) {
       console.error("Error al crear perfil automático:", errorPerfil);
     }
 
-    // 8. Enviar correo de verificación
-    const resultadoEnvio = await enviarCodigoVerificacion(correo, nombre, codigoVerificacion);
+    // 13. Enviar código de verificación.
+    const resultadoEnvio = await enviarCodigoVerificacion(
+      correo,
+      nombre,
+      codigoVerificacion
+    );
+
     const usuarioRespuesta = {
       id_usuario: usuarioCreado.id_usuario,
       nombre: usuarioCreado.nombre,
@@ -151,12 +228,15 @@ export const registro = async (req, res) => {
     }
 
     return res.status(201).json({
-      mensaje: "Registro recibido. Hemos enviado un código de 6 dígitos a tu correo. Después de verificarlo, el gimnasio revisará tu registro y activará tu cuenta.",      correoEnviado: true,
+      mensaje: "Registro recibido. Hemos enviado un código de 6 dígitos a tu correo. Después de verificarlo, el gimnasio revisará tu registro y activará tu cuenta.",
+      correoEnviado: true,
       usuario: usuarioRespuesta,
       perfil: perfilCreado || null
     });
+
   } catch (error) {
     console.error("Error inesperado en registro:", error);
+
     return res.status(500).json({
       mensaje: "Error interno del servidor"
     });

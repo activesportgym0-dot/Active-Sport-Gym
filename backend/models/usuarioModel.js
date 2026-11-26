@@ -4,7 +4,7 @@ import { supabase } from "../config/supabase.js";
 export const obtenerTodos = async () => {
   const { data, error } = await supabase
     .from("usuarios")
-    .select("id_usuario, nombre, correo, telefono, cedula, rol, fecha_registro,is_active,isVerified,municipio, direccion")
+    .select("id_usuario, nombre, correo, telefono, cedula, rol, fecha_registro,is_active,isVerified,municipio, direccion, departamento")
     .order("id_usuario", { ascending: true });
   return { data, error };
 };
@@ -13,7 +13,7 @@ export const obtenerTodos = async () => {
 export const obtenerUsuarioPorId = async (id) => {
   const { data, error } = await supabase
     .from("usuarios")
-    .select("id_usuario, nombre, apellido, correo, telefono, cedula, edad, peso, altura, rol, fecha_registro, is_active, isVerified,municipio, direccion")
+    .select("id_usuario, nombre, apellido, correo, telefono, cedula, edad, peso, altura, rol, fecha_registro, is_active, isVerified,municipio, direccion, departamento")
     .eq("id_usuario", id)
     .maybeSingle();
   return { data, error };
@@ -45,6 +45,7 @@ export const crearUser = async (
   codigoVerificacionExpiracion,
   municipio,
   direccion,
+  departamento,
   terminosAceptadosEn
 ) => {
   const { data, error } = await supabase
@@ -67,6 +68,7 @@ export const crearUser = async (
         codigoVerificacionExpiracion,
         municipio,
         direccion,
+        departamento,
         terminos_aceptados_en: terminosAceptadosEn
       }
     ])
@@ -82,7 +84,7 @@ export const actualizarUsuario = async (id, campos) => {
     .from("usuarios")
     .update(campos)
     .eq("id_usuario", id)
-    .select("id_usuario, nombre, apellido, correo, telefono, cedula, edad, peso, altura, rol, is_active, municipio, direccion")
+    .select("id_usuario, nombre, apellido, correo, telefono, cedula, edad, peso, altura, rol, is_active, municipio, direccion, departamento")
     .maybeSingle();
   return { data, error };
 };
@@ -93,7 +95,7 @@ export const eliminarUsuario = async (id) => {
     .from("usuarios")
     .delete()
     .eq("id_usuario", id)
-    .select("id_usuario, nombre, apellido, correo, telefono, cedula, edad, peso, altura, rol, fecha_registro")
+    .select("id_usuario, nombre, apellido, correo, telefono, cedula, edad, peso, altura, rol, fecha_registro, municipio, direccion, departamento")
     .maybeSingle();
   return { data, error };
 };

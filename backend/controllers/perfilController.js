@@ -59,13 +59,14 @@ export const editarPerfil = async (req, res) => {
             "nombre",
             "apellido",
             // "correo" no se puede cambiar: es el que se verificó con el código al registrarse
-            "telefono",
-            "cedula",
+            // "telefono" no se puede cambiar: es el que se verificó con el código al registrarse
+            // "cedula" no se puede cambiar: es el que se verificó con el código al registrarse
             "edad",
             "peso",
             "altura",
             "municipio",
-            "direccion"
+            "direccion",
+            "departamento"
         ];
         const camposUsuario = {};
         // TOMAR SOLAMENTE LOS CAMPOS PERMITIDOS
@@ -112,6 +113,10 @@ export const editarPerfil = async (req, res) => {
         if (camposUsuario.direccion !== undefined) {
             camposUsuario.direccion =
                 String(camposUsuario.direccion).trim();
+        }
+        if (camposUsuario.departamento !== undefined) {
+            camposUsuario.departamento =
+                String(camposUsuario.departamento).trim();
         }
         // VALIDAR CORREO
         if (camposUsuario.correo !== undefined) {
@@ -192,7 +197,7 @@ export const editarPerfil = async (req, res) => {
                 });
             }
         }
-        // VALIDAR MUNICIPIO Y DIRECCIÓN (no pueden quedar vacíos ni pasar del largo de la columna)
+        // VALIDAR MUNICIPIO, DEPARTAMENTO Y DIRECCIÓN (no pueden quedar vacíos ni pasar del largo de la columna)
         if (camposUsuario.municipio !== undefined) {
             if (
                 camposUsuario.municipio.length === 0 ||
@@ -201,6 +206,17 @@ export const editarPerfil = async (req, res) => {
                 return res.status(400).json({
                     mensaje:
                         "El municipio es obligatorio y debe tener máximo 100 caracteres"
+                });
+            }
+        }
+        if (camposUsuario.departamento !== undefined) {
+            if (
+                camposUsuario.departamento.length === 0 ||
+                camposUsuario.departamento.length > 100
+            ) {
+                return res.status(400).json({
+                    mensaje:
+                        "El departamento es obligatorio y debe tener máximo 100 caracteres"
                 });
             }
         }

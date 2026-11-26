@@ -1,13 +1,17 @@
+
 import Groq from "groq-sdk";
 import crypto from "crypto";
+
 import { obtenerTodosEjercicios } from "../models/ejercicioModel.js";
 import { obtenerProductosBD } from "../models/productoModel.js";
+
 import {
   obtenerMetricasAdmin,
   obtenerHistorialChat,
   guardarMensajesChat,
   obtenerReglasHorariosChat,
 } from "../models/chatModel.js";
+
 import {
   construirPromptCliente,
   construirPromptAdmin,
@@ -16,72 +20,130 @@ import {
   MENSAJES_MATEMATICA_SUELTA,
   MARCADOR_FUERA_DE_ALCANCE,
 } from "../config/chatPrompts.js";
+
 import { esMatematicaSuelta } from "../config/filtroTemas.js";
 
-console.log("[chat] controlador con filtro de temas cargado");
+console.log("[chat] Controlador con filtro de temas cargado");
 
-const MODELO_CHAT = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
-// Modelo pequeño y rápido que decide si el mensaje es del gimnasio (se puede cambiar en el .env)
-const MODELO_FILTRO = process.env.GROQ_MODEL_FILTRO || "llama-3.1-8b-instant";
-const MAX_CARACTERES_MENSAJE = 1000; // largo máximo de cada pregunta
-const MENSAJES_DE_MEMORIA = 10; // cuántos mensajes anteriores recuerda la IA
+// ───────────── CONFIGURACIÓN ─────────────
 
-// El cliente de Groq se crea al primer uso: si falta la clave, el servidor no se cae al iniciar
+const MODELO_CHAT =
+  process.env.GROQ_MODEL || "openai/gpt-oss-20b";
+
+// Si no configuras otro modelo para el filtro, utiliza el principal.
+const MODELO_FILTRO =
+  process.env.GROQ_MODEL_FILTRO || MODELO_CHAT;
+
+const MAX_CARACTERES_MENSAJE = 1000;
+const MENSAJES_DE_MEMORIA = 10;
+
+// ───────────── CLIENTE GROQ ─────────────
+
 let groqClient = null;
+
 const obtenerGroq = () => {
-  if (!groqClient) groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  if (!process.env.GROQ_API_KEY) {
+    const error = new Error("Falta configurar GROQ_API_KEY.");
+    error.status = 503;
+    throw error;
+  }
+
+  if (!groqClient) {
+    groqClient = new Groq({
+      apiKey: process.env.GROQ_API_KEY,
+    });
+  }
+
   return groqClient;
 };
 
-// ───────────── Formato de los datos que se le pasan a la IA ─────────────
+// ───────────── FORMATO DE DATOS ─────────────
 
 const formatearEjercicios = (ejercicios) => {
-  const nombres = (ejercicios || []).map((e) => e?.nombre).filter(Boolean).slice(0, 200);
-  return nombres.length > 0 ? nombres.map((n) => `- ${n}`).join("\n") : "No hay ejercicios registrados.";
+  const nombres = (ejercicios || [])
+    .map((e) => e?.nombre)
+    .filter(Boolean)
+    .slice(0, 200);
+
+  return nombres.length
+    ? nombres.map((nombre) => `- ${nombre}`).join("\n")
+    : "No hay ejercicios registrados.";
 };
 
-// Solo productos con stock; no se envían las cantidades
 const formatearProductos = (productos) => {
-  const disponibles = (productos || []).filter((p) => p.stock > 0).slice(0, 100);
-  if (disponibles.length === 0) return "No hay productos con stock disponible.";
+  const disponibles = (productos || [])
+    .filter((p) => Number(p?.stock) > 0)
+    .slice(0, 100);
+
+  if (!disponibles.length) {
+    return "No hay productos con stock disponible.";
+  }
+
   return disponibles
     .map((p) => {
-      const detalles = [p.marca, p.sabor].filter(Boolean).join(" - ");
-      return `- ${p.nombre}${detalles ? ` (${detalles})` : ""}: $${Number(p.precio).toLocaleString("es-CO")} COP`;
+      const detalles = [p.marca, p.sabor]
+        .filter(Boolean)
+        .join(" - ");
+
+      const precio = Number(p.precio);
+
+      const precioFormateado = Number.isFinite(precio)
+        ? precio.toLocaleString("es-CO")
+        : "Precio no disponible";
+
+      return `- ${p.nombre}${detalles ? ` (${detalles})` : ""}: $${precioFormateado} COP`;
     })
     .join("\n");
 };
 
 const formatearReglasHorarios = (reglas) => {
   const lista = (reglas || []).slice(0, 40);
-  if (lista.length === 0) return "No hay horarios ni reglas registrados.";
-  return lista.map((r) => `- [${r.tipo}] ${r.titulo}: ${r.contenido}`).join("\n");
+
+  if (!lista.length) {
+    return "No hay horarios ni reglas registrados.";
+  }
+
+  return lista
+    .map((r) => `- [${r.tipo}] ${r.titulo}: ${r.contenido}`)
+    .join("\n");
 };
 
-const formatearMetricas = (m) =>
-  [
-    `- Usuarios registrados: ${m.totalUsuarios}`,
-    `- Membresías registradas: ${m.totalMembresias}`,
-    `- Ejercicios: ${m.totalEjercicios} (en ${m.totalCategoriasEjercicios} categorías)`,
-    `- Rutinas registradas: ${m.totalRutinas}`,
-    `- Productos en tienda: ${m.totalProductos} (en ${m.totalCategoriasProductos} categorías)`,
-    `- Pedidos registrados: ${m.totalPedidos}`,
-    `- Reglas y horarios registrados: ${m.totalReglasHorarios}`,
+const formatearMetricas = (m = {}) => {
+  return [
+    `- Usuarios registrados: ${m.totalUsuarios ?? 0}`,
+    `- Membresías registradas: ${m.totalMembresias ?? 0}`,
+    `- Ejercicios: ${m.totalEjercicios ?? 0} (en ${m.totalCategoriasEjercicios ?? 0} categorías)`,
+    `- Rutinas registradas: ${m.totalRutinas ?? 0}`,
+    `- Productos en tienda: ${m.totalProductos ?? 0} (en ${m.totalCategoriasProductos ?? 0} categorías)`,
+    `- Pedidos registrados: ${m.totalPedidos ?? 0}`,
+    `- Reglas y horarios registrados: ${m.totalReglasHorarios ?? 0}`,
   ].join("\n");
+};
 
-const formatearStockBajo = (productos) =>
-  (productos || []).length > 0
-    ? productos.map((p) => `- ${p.nombre}: ${p.stock} unidades`).join("\n")
+const formatearStockBajo = (productos) => {
+  return (productos || []).length
+    ? productos
+        .map((p) => `- ${p.nombre}: ${p.stock} unidades`)
+        .join("\n")
     : "Ningún producto tiene el stock bajo.";
+};
 
-// ───────────── Sesión y llamada a la IA ─────────────
+// ───────────── SESIÓN ─────────────
 
-// El id de sesión lo crea el servidor; si el cliente manda uno, debe tener un formato seguro
 const SESION_VALIDA = /^[A-Za-z0-9_-]{8,80}$/;
-const resolverSesion = (sesionId, rol) =>
-  typeof sesionId === "string" && SESION_VALIDA.test(sesionId)
-    ? sesionId
-    : `chat_${rol}_${crypto.randomUUID()}`;
+
+const resolverSesion = (sesionId, rol) => {
+  if (
+    typeof sesionId === "string" &&
+    SESION_VALIDA.test(sesionId)
+  ) {
+    return sesionId;
+  }
+
+  return `chat_${rol}_${crypto.randomUUID()}`;
+};
+
+// ───────────── LLAMADA AL MODELO PRINCIPAL ─────────────
 
 const pedirRespuestaIA = async (systemPrompt, historial, mensaje) => {
   const params = {
@@ -89,67 +151,138 @@ const pedirRespuestaIA = async (systemPrompt, historial, mensaje) => {
     temperature: 0.5,
     max_completion_tokens: 1200,
     messages: [
-      { role: "system", content: systemPrompt },
-      // Memoria de la conversación: los mensajes anteriores de esta sesión
+      {
+        role: "system",
+        content: systemPrompt,
+      },
       ...historial.map((m) => ({
         role: m.emisor === "usuario" ? "user" : "assistant",
         content: m.mensaje,
       })),
-      { role: "user", content: mensaje },
+      {
+        role: "user",
+        content: mensaje,
+      },
     ],
   };
-  // Los modelos gpt-oss aceptan este ajuste: respuestas más rápidas
-  if (MODELO_CHAT.includes("gpt-oss")) params.reasoning_effort = "low";
 
-  const completion = await obtenerGroq().chat.completions.create(params);
-  return completion.choices?.[0]?.message?.content?.trim() || "";
+  if (MODELO_CHAT.includes("gpt-oss")) {
+    params.reasoning_effort = "low";
+  }
+
+  const completion = await obtenerGroq()
+    .chat.completions.create(params);
+
+  return (
+    completion.choices?.[0]?.message?.content?.trim() || ""
+  );
 };
 
-// ───────────── Filtro de temas ─────────────
+// ───────────── FILTRO DE TEMAS ─────────────
 
-const pedirVeredicto = async (modelo, rol, historial, mensaje) => {
+const pedirVeredicto = async (
+  modelo,
+  rol,
+  historial,
+  mensaje
+) => {
   const contexto = historial
     .slice(-4)
-    .map((m) => `${m.emisor === "usuario" ? "Usuario" : "Asistente"}: ${m.mensaje}`)
+    .map((m) => {
+      const emisor =
+        m.emisor === "usuario" ? "Usuario" : "Asistente";
+
+      return `${emisor}: ${m.mensaje}`;
+    })
     .join("\n");
 
   const params = {
     model: modelo,
     temperature: 0,
-    max_completion_tokens: modelo.includes("gpt-oss") ? 600 : 20,
+    max_completion_tokens: modelo.includes("gpt-oss") ? 600 : 30,
     messages: [
-      { role: "system", content: construirPromptFiltro(rol) },
+      {
+        role: "system",
+        content: construirPromptFiltro(rol),
+      },
       {
         role: "user",
-        content: `Conversación reciente:\n${contexto || "(ninguna)"}\n\nÚLTIMO mensaje del usuario:\n"""${mensaje}"""\n\nResponde solo DENTRO o FUERA.`,
+        content:
+          `Conversación reciente:\n${contexto || "(ninguna)"}\n\n` +
+          `ÚLTIMO mensaje del usuario:\n"""${mensaje}"""\n\n` +
+          "Responde únicamente DENTRO o FUERA.",
       },
     ],
   };
-  if (modelo.includes("gpt-oss")) params.reasoning_effort = "low";
 
-  const completion = await obtenerGroq().chat.completions.create(params);
-  const veredicto = (completion.choices?.[0]?.message?.content || "").trim().toUpperCase();
-  console.log(`[chat] filtro ${modelo} (${rol}): ${veredicto || "(vacío)"}`);
-  return veredicto;
+  if (modelo.includes("gpt-oss")) {
+    params.reasoning_effort = "low";
+  }
+
+  const completion = await obtenerGroq()
+    .chat.completions.create(params);
+
+  const veredicto = (
+    completion.choices?.[0]?.message?.content || ""
+  )
+    .trim()
+    .toUpperCase();
+
+  console.log(
+    `[chat] Filtro ${modelo} (${rol}): ${veredicto || "(vacío)"}`
+  );
+
+  if (veredicto.startsWith("DENTRO")) {
+    return true;
+  }
+
+  if (veredicto.startsWith("FUERA")) {
+    return false;
+  }
+
+  return null;
 };
 
-// true = el mensaje es del gimnasio. Si el filtro falla se prueba con el modelo principal;
-// si también falla, se deja pasar (la IA principal tiene sus propias reglas de alcance).
+// Si hay dos modelos distintos, el segundo sirve como respaldo.
+// Si ambos fallan o responden algo inválido, no se permite continuar
+// sin verificar el tema.
 const estaDentroDelTema = async (rol, historial, mensaje) => {
-  for (const modelo of [MODELO_FILTRO, MODELO_CHAT]) {
+  const modelos = [...new Set([MODELO_FILTRO, MODELO_CHAT])];
+
+  for (const modelo of modelos) {
     try {
-      const veredicto = await pedirVeredicto(modelo, rol, historial, mensaje);
-      if (veredicto.startsWith("FUERA")) return false;
-      if (veredicto.startsWith("DENTRO")) return true;
-      // Respuesta rara: se intenta con el siguiente modelo
+      const resultado = await pedirVeredicto(
+        modelo,
+        rol,
+        historial,
+        mensaje
+      );
+
+      if (resultado !== null) {
+        return resultado;
+      }
+
+      console.warn(
+        `[chat] El filtro ${modelo} devolvió un resultado inválido.`
+      );
     } catch (error) {
-      console.error(`Filtro de temas falló con ${modelo}:`, error?.message || error);
+      console.error(
+        `[chat] Falló el filtro ${modelo}:`,
+        error?.message || error
+      );
     }
   }
-  return true;
+
+  const error = new Error(
+    "No fue posible verificar si el mensaje pertenece al gimnasio."
+  );
+
+  error.status = 503;
+  throw error;
 };
 
-// Respuesta fija cuando el mensaje no es del gimnasio (la IA principal ni lo ve)
+// ───────────── RESPUESTA FUERA DE TEMA ─────────────
+
 const responderFueraDeTema = async (
   res,
   rol,
@@ -158,78 +291,183 @@ const responderFueraDeTema = async (
   mensaje,
   respuestaFija = MENSAJES_FUERA_DE_TEMA[rol]
 ) => {
-  await guardarMensajesChat(sesionId, usuarioId, mensaje, respuestaFija);
-  return res.status(200).json({ respuesta: respuestaFija, sesionId });
+  await guardarMensajesChat(
+    sesionId,
+    usuarioId,
+    mensaje,
+    respuestaFija
+  );
+
+  return res.status(200).json({
+    respuesta: respuestaFija,
+    sesionId,
+  });
 };
 
-// Flujo común del chat de cliente y de administrador
+// ───────────── FLUJO PRINCIPAL DEL CHAT ─────────────
+
 const responderChat = async (req, res, { rol, armarPrompt }) => {
   try {
-    const mensaje = typeof req.body?.mensaje === "string" ? req.body.mensaje.trim() : "";
+    const mensaje =
+      typeof req.body?.mensaje === "string"
+        ? req.body.mensaje.trim()
+        : "";
+
     if (!mensaje) {
-      return res.status(400).json({ error: "Debes enviar un mensaje." });
+      return res.status(400).json({
+        error: "Debes enviar un mensaje.",
+      });
     }
+
     if (mensaje.length > MAX_CARACTERES_MENSAJE) {
-      return res
-        .status(400)
-        .json({ error: `El mensaje es muy largo (máximo ${MAX_CARACTERES_MENSAJE} caracteres).` });
+      return res.status(400).json({
+        error: `El mensaje es muy largo (máximo ${MAX_CARACTERES_MENSAJE} caracteres).`,
+      });
     }
 
-    // El usuario sale del token, nunca del body (así nadie puede hacerse pasar por otro)
+    // El ID se obtiene del token de autenticación.
     const usuarioId = Number(req.usuario?.id_usuario);
+
     if (!Number.isInteger(usuarioId) || usuarioId <= 0) {
-      return res.status(401).json({ error: "Usuario no autenticado." });
+      return res.status(401).json({
+        error: "Usuario no autenticado.",
+      });
     }
 
-    const sesionId = resolverSesion(req.body?.sesionId, rol);
+    const sesionId = resolverSesion(
+      req.body?.sesionId,
+      rol
+    );
 
-    // BARRERA 1 (sin IA): matemáticas sueltas y similares se rechazan de inmediato
+    // BARRERA 1: matemáticas sueltas sin relación con el gimnasio.
     if (esMatematicaSuelta(mensaje)) {
-      return responderFueraDeTema(res, rol, sesionId, usuarioId, mensaje, MENSAJES_MATEMATICA_SUELTA[rol]);
+      return responderFueraDeTema(
+        res,
+        rol,
+        sesionId,
+        usuarioId,
+        mensaje,
+        MENSAJES_MATEMATICA_SUELTA[rol]
+      );
     }
 
-    const historial = await obtenerHistorialChat(sesionId, usuarioId, MENSAJES_DE_MEMORIA);
+    // Recuperar conversación anterior.
+    const historial = await obtenerHistorialChat(
+      sesionId,
+      usuarioId,
+      MENSAJES_DE_MEMORIA
+    );
 
-    // Si el mensaje no es del gimnasio (por ejemplo una multiplicación), la IA principal ni lo ve
-    const dentroDelTema = await estaDentroDelTema(rol, historial, mensaje);
+    // BARRERA 2: verificar si el mensaje corresponde al gimnasio.
+    const dentroDelTema = await estaDentroDelTema(
+      rol,
+      historial,
+      mensaje
+    );
+
     if (!dentroDelTema) {
-      return responderFueraDeTema(res, rol, sesionId, usuarioId, mensaje);
+      return responderFueraDeTema(
+        res,
+        rol,
+        sesionId,
+        usuarioId,
+        mensaje
+      );
     }
 
+    // Construir prompt con información real de la base de datos.
     const systemPrompt = await armarPrompt();
-    const respuesta = await pedirRespuestaIA(systemPrompt, historial, mensaje);
 
-    // BARRERA 3: la IA principal también puede marcar el mensaje como ajeno al gimnasio
-    if (respuesta.includes(MARCADOR_FUERA_DE_ALCANCE)) {
-      return responderFueraDeTema(res, rol, sesionId, usuarioId, mensaje);
-    }
+    // Generar respuesta.
+    const respuesta = await pedirRespuestaIA(
+      systemPrompt,
+      historial,
+      mensaje
+    );
+
     if (!respuesta) {
-      return res.status(502).json({ error: "El asistente no pudo generar una respuesta. Intenta de nuevo." });
+      return res.status(502).json({
+        error: "El asistente no pudo generar una respuesta. Intenta de nuevo.",
+      });
     }
 
-    await guardarMensajesChat(sesionId, usuarioId, mensaje, respuesta);
+    // BARRERA 3: revisar si el modelo principal marcó el mensaje
+    // como algo que está fuera del alcance del gimnasio.
+    if (respuesta.includes(MARCADOR_FUERA_DE_ALCANCE)) {
+      return responderFueraDeTema(
+        res,
+        rol,
+        sesionId,
+        usuarioId,
+        mensaje
+      );
+    }
 
-    return res.status(200).json({ respuesta, sesionId });
+    // Guardar conversación.
+    await guardarMensajesChat(
+      sesionId,
+      usuarioId,
+      mensaje,
+      respuesta
+    );
+
+    return res.status(200).json({
+      respuesta,
+      sesionId,
+    });
   } catch (error) {
-    console.error(`Error en el chat (${rol}):`, error);
-    // No se envía error.message al usuario: puede traer datos internos
+    console.error(
+      `[chat] Error en el chat (${rol}):`,
+      error?.message || error
+    );
+
     if (error?.status === 429) {
-      return res.status(503).json({ error: "El asistente está muy ocupado. Intenta de nuevo en unos segundos." });
+      return res.status(503).json({
+        error: "El asistente está muy ocupado. Intenta de nuevo en unos segundos.",
+      });
     }
-    return res.status(500).json({ error: "El asistente no está disponible en este momento. Intenta de nuevo." });
+
+    if (error?.status === 401 || error?.status === 403) {
+      return res.status(503).json({
+        error: "Hay un problema con la configuración del servicio de IA.",
+      });
+    }
+
+    if (error?.status === 404) {
+      return res.status(503).json({
+        error: "El modelo de IA configurado no está disponible. Revisa la configuración.",
+      });
+    }
+
+    if (error?.status === 503) {
+      return res.status(503).json({
+        error: "El asistente no está disponible en este momento. Intenta de nuevo.",
+      });
+    }
+
+    return res.status(500).json({
+      error: "El asistente no está disponible en este momento. Intenta de nuevo.",
+    });
   }
 };
 
-// ───────────── CLIENTE ─────────────
+// ───────────── CHAT DEL CLIENTE ─────────────
+
 export const chatearConCliente = (req, res) =>
   responderChat(req, res, {
     rol: "cliente",
+
     armarPrompt: async () => {
-      const [{ data: ejercicios }, { data: productos }, reglas] = await Promise.all([
+      const [
+        { data: ejercicios },
+        { data: productos },
+        reglas,
+      ] = await Promise.all([
         obtenerTodosEjercicios(),
         obtenerProductosBD({}),
         obtenerReglasHorariosChat(),
       ]);
+
       return construirPromptCliente({
         listaEjercicios: formatearEjercicios(ejercicios),
         listaProductos: formatearProductos(productos),
@@ -238,19 +476,27 @@ export const chatearConCliente = (req, res) =>
     },
   });
 
-// ───────────── ADMINISTRADOR ─────────────
+// ───────────── CHAT DEL ADMINISTRADOR ─────────────
+
 export const chatearConAdmin = (req, res) =>
   responderChat(req, res, {
     rol: "admin",
+
     armarPrompt: async () => {
-      const [metricas, reglas] = await Promise.all([obtenerMetricasAdmin(), obtenerReglasHorariosChat()]);
+      const [metricas, reglas] = await Promise.all([
+        obtenerMetricasAdmin(),
+        obtenerReglasHorariosChat(),
+      ]);
+
       return construirPromptAdmin({
         resumenMetricas: formatearMetricas(metricas),
-        listaStockBajo: formatearStockBajo(metricas.productosBajoStock),
+        listaStockBajo: formatearStockBajo(
+          metricas?.productosBajoStock
+        ),
         listaReglasHorarios: formatearReglasHorarios(reglas),
       });
     },
   });
 
-// Compatibilidad con el nombre anterior
+// Compatibilidad con el nombre anterior.
 export const chatearConGym = chatearConCliente;
