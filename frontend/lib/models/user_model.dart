@@ -1,3 +1,4 @@
+
 class UserModel {
   final int? idUsuario;
   final String nombre;
@@ -11,11 +12,13 @@ class UserModel {
   final String password;
   final String? confirmarContrasena;
   final String rol;
-  final bool isActive; // columna is_active (true = cuenta habilitada)
+  final bool isActive;
   final String? fechaRegistro;
-  final String? municipio; // dónde vive (ej. Garzón)
-  final String? direccion; // barrio, vereda o dirección
-  final bool isVerified; // columna isVerified (true = ya confirmó el correo)
+  final String? municipio;
+  final String? direccion;
+  final String? departamento;
+  final bool isVerified;
+
   UserModel({
     this.idUsuario,
     required this.nombre,
@@ -28,39 +31,45 @@ class UserModel {
     this.altura,
     required this.password,
     this.confirmarContrasena,
-    this.rol = 'cliente', // 👈 Actualizado a 'cliente' para coincidir con tu backend
+    this.rol = 'cliente',
     this.isActive = true,
     this.fechaRegistro,
     this.municipio,
     this.direccion,
+    this.departamento,
     this.isVerified = true,
   });
+
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
-      idUsuario: json['id_usuario'] != null ? int.tryParse(json['id_usuario'].toString()) : null,
+      idUsuario: json['id_usuario'] != null
+          ? int.tryParse(json['id_usuario'].toString())
+          : null,
       nombre: json['nombre'] ?? '',
       apellido: json['apellido'] ?? '',
       correo: json['correo'] ?? '',
       telefono: json['telefono']?.toString(),
       cedula: json['cedula']?.toString(),
-      edad: json['edad'] != null ? int.tryParse(json['edad'].toString()) : null,
-      peso: json['peso'] != null ? double.tryParse(json['peso'].toString()) : null,
-      altura: json['altura'] != null ? double.tryParse(json['altura'].toString()) : null,
+      edad: json['edad'] != null
+          ? int.tryParse(json['edad'].toString())
+          : null,
+      peso: json['peso'] != null
+          ? double.tryParse(json['peso'].toString())
+          : null,
+      altura: json['altura'] != null
+          ? double.tryParse(json['altura'].toString())
+          : null,
       password: '',
       rol: json['rol'] ?? 'cliente',
-      // Si la columna viene vacía (null) se considera activa, igual que el valor por defecto
       isActive: json['is_active'] != false,
       fechaRegistro: json['fecha_registro']?.toString(),
       municipio: json['municipio']?.toString(),
       direccion: json['direccion']?.toString(),
-      // Si la columna viene vacía (null) se considera verificada
+      departamento: json['departamento']?.toString(),
       isVerified: json['isVerified'] != false,
     );
   }
 
-  /// Mapa con las claves que ya usan TarjetaUsuarioAdmin y las pantallas de detalle
-  /// e historial (id, nombre, apellido, correo, cedula, rol, activo), así esas
-  /// pantallas no cambian.
   Map<String, dynamic> toMapaAdmin() {
     return {
       'id': idUsuario,
@@ -75,9 +84,11 @@ class UserModel {
       'fecha_registro': fechaRegistro,
       'municipio': municipio,
       'direccion': direccion,
+      'departamento': departamento,
       'verificado': isVerified,
     };
   }
+
   Map<String, dynamic> toJson() {
     return {
       'nombre': nombre,
@@ -93,6 +104,7 @@ class UserModel {
       'rol': rol,
       'municipio': municipio,
       'direccion': direccion,
+      'departamento': departamento,
     };
   }
 }

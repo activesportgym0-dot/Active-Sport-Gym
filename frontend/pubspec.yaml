@@ -2,7 +2,7 @@ name: frontend
 description: "Active Sport Gym es una aplicación móvil para la gestión de un gimnasio, que permite a los usuarios registrarse, iniciar sesión, ver y reservar clases, acceder a su historial de entrenamiento y recibir notificaciones sobre eventos y promociones."
 publish_to: 'none'
 
-version: 6.0.0+6
+version: 7.0.0+7
 
 environment:
   sdk: '>=3.11.5 <4.0.0'
@@ -65,10 +65,10 @@ flutter:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/images/icono.jpg"
+  image_path: "assets/images/splash.jpg"
   min_sdk_android: 21
   adaptive_icon_background: "#000000"
-  adaptive_icon_foreground: "assets/images/icono.jpg"
+  adaptive_icon_foreground: "assets/images/splash.jpg"
 
 flutter_native_splash:
   color: "#000000"

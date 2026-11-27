@@ -37,22 +37,23 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
   bool _isLoading = false;
   bool _aceptaTerminos = false;
 
-  // Requisitos de contraseña en tiempo real.
   bool _tieneMinimo8 = false;
   bool _tieneMayuscula = false;
   bool _tieneNumero = false;
   bool _tieneSimbolo = false;
 
-  // Datos de ubicación.
   List<Map<String, dynamic>> _departamentos = [];
   List<Map<String, dynamic>> _municipios = [];
+
   int? _departamentoSeleccionado;
+
   bool _cargandoDepartamentos = false;
   bool _cargandoMunicipios = false;
 
   @override
   void initState() {
     super.initState();
+
     _passwordController.addListener(_validarContrasenaEnTiempoReal);
     _cargarDepartamentos();
   }
@@ -87,6 +88,8 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
   }
 
   Future<void> _cargarMunicipios(int departamentoId) async {
+    if (!mounted) return;
+
     setState(() {
       _municipios = [];
       _municipioController.clear();
@@ -152,15 +155,12 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
 
   // REGISTRO DE USUARIO.
   Future<void> _realizarRegistro() async {
-    // Evita que se envíe el formulario más de una vez.
     if (_isLoading) return;
 
-    // Cada campo muestra su propio mensaje de validación.
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    // Validación de aceptación de términos.
     if (!_aceptaTerminos) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -180,28 +180,30 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
     final municipio = _municipioController.text.trim();
     final direccion = _direccionController.text.trim();
 
-    final pesoStr = _pesoController.text.trim();
-    final alturaStr = _alturaController.text.trim();
-    final edadStr = _edadController.text.trim();
-
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
-    // EDAD, PESO Y ALTURA SON OPCIONALES.
-    // Si el usuario no escribe nada, se envía null.
-    final int? edad =
-        edadStr.isEmpty ? null : int.tryParse(edadStr);
+    // CAMPOS OPCIONALES: EDAD, PESO Y ALTURA.
+    // Si están vacíos se envía null.
 
-    final double? peso = pesoStr.isEmpty
+    final int? edad = _edadController.text.trim().isEmpty
         ? null
-        : double.tryParse(pesoStr.replaceAll(',', '.'));
+        : int.tryParse(_edadController.text.trim());
 
-    final double? altura = alturaStr.isEmpty
+    final double? peso = _pesoController.text.trim().isEmpty
         ? null
-        : double.tryParse(alturaStr.replaceAll(',', '.'));
+        : double.tryParse(
+            _pesoController.text.trim().replaceAll(',', '.'),
+          );
 
-    // Validaciones adicionales para evitar enviar valores incorrectos.
-    if (edadStr.isNotEmpty &&
+    final double? altura = _alturaController.text.trim().isEmpty
+        ? null
+        : double.tryParse(
+            _alturaController.text.trim().replaceAll(',', '.'),
+          );
+
+    // VALIDAR EDAD SOLAMENTE SI SE ESCRIBIÓ.
+    if (_edadController.text.trim().isNotEmpty &&
         (edad == null || edad < 1 || edad > 120)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -213,7 +215,8 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
       return;
     }
 
-    if (pesoStr.isNotEmpty &&
+    // VALIDAR PESO SOLAMENTE SI SE ESCRIBIÓ.
+    if (_pesoController.text.trim().isNotEmpty &&
         (peso == null || !peso.isFinite || peso <= 0)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -225,7 +228,8 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
       return;
     }
 
-    if (alturaStr.isNotEmpty &&
+    // VALIDAR ALTURA SOLAMENTE SI SE ESCRIBIÓ.
+    if (_alturaController.text.trim().isNotEmpty &&
         (altura == null || !altura.isFinite || altura <= 0)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -237,6 +241,14 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
       return;
     }
 
+    // OBTENER EL NOMBRE DEL DEPARTAMENTO SELECCIONADO.
+    final departamentoDatos = _departamentos.firstWhere(
+      (item) => (item['id'] as num).toInt() == _departamentoSeleccionado,
+    );
+
+    final String departamento =
+        departamentoDatos['name'].toString();
+
     setState(() => _isLoading = true);
 
     try {
@@ -245,12 +257,18 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
         apellido: apellido,
         correo: correo,
         telefono: telefono,
-        municipio: municipio,
-        direccion: direccion,
         cedula: cedula,
+
+        // CAMPOS OPCIONALES.
         edad: edad,
         peso: peso,
         altura: altura,
+
+        // UBICACIÓN.
+        municipio: municipio,
+        direccion: direccion,
+        departamento: departamento,
+
         password: password,
         confirmarContrasena: confirmPassword,
         rol: 'cliente',
@@ -309,6 +327,8 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
         );
       }
     } catch (e) {
+      debugPrint('Error al registrar usuario: $e');
+
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -331,7 +351,6 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // IMAGEN DE FONDO.
           Positioned.fill(
             child: Image.asset(
               'assets/images/3.jpg',
@@ -339,14 +358,12 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
             ),
           ),
 
-          // FILTRO OSCURO.
           Positioned.fill(
             child: Container(
               color: Colors.black.withOpacity(0.5),
             ),
           ),
 
-          // CONTENIDO PRINCIPAL.
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -380,7 +397,6 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
 
                     const SizedBox(height: 10),
 
-                    // LOGO.
                     Container(
                       width: 150,
                       height: 150,
@@ -404,7 +420,6 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
 
                     const SizedBox(height: 10),
 
-                    // BIENVENIDA.
                     Text.rich(
                       TextSpan(
                         text: 'Bienvenido a ',
@@ -424,7 +439,6 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
 
                     const SizedBox(height: 20),
 
-                    // FORMULARIO.
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
@@ -698,7 +712,6 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
 
                             const SizedBox(height: 8),
 
-                            // REQUISITOS DE CONTRASEÑA.
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 4,
@@ -780,7 +793,7 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
 
                     const SizedBox(height: 25),
 
-                    // ACEPTACIÓN DE TÉRMINOS Y POLÍTICA DE DATOS.
+                    // ACEPTACIÓN DE TÉRMINOS.
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -904,7 +917,6 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
 
                     const SizedBox(height: 25),
 
-                    // ENLACE PARA INICIAR SESIÓN.
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -1022,7 +1034,6 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
       return 'Este campo es obligatorio';
     }
 
-    // Permite letras, tildes, ñ, espacios, guiones y apóstrofes.
     final formatoValido = RegExp(
       r"^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]+([ '-][a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]+)*$",
     );
